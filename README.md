@@ -1,88 +1,102 @@
 # MedIntel — Intelligent Public Health Ecosystem
 
-AI-Driven Public Health Chatbot for Disease Awareness.
-Project Work Phase – I | Dept. of CSE, Sri Krishna College of Technology
+# MedIntel — Intelligent Public Health Ecosystem
 
-This is the **base project skeleton**: folder structure, configs, and stubbed
-routers/services for all 4 major modules described in the proposal. Nothing is
-wired to real models yet — every endpoint returns a clearly marked `[stub]`
-response so the team can build out logic module-by-module without touching
-the overall structure.
+**MedIntel** is an AI-driven public health chatbot and dashboard for disease awareness, outbreak prediction, and offline health record management. 
 
-## Modules
+This repository contains both the **FastAPI Backend** and the **React Dashboard** (Frontend).
 
-| # | Module | Tech (per proposal) | Route prefix |
-|---|--------|----------------------|---------------|
-| 1 | AI Medical Knowledge Assistant | LangChain + Llama 3 (multilingual) | `/api/v1/assistant` |
-| 2 | Healthcare RAG System | LangChain + FAISS + OCR (OCR/embeddings) | `/api/v1/rag` |
-| 3 | Outbreak Prediction Engine | LSTM + XGBoost | `/api/v1/outbreak` |
-| 4 | Health Worker Portal | SQLite / local DB (offline-first) | `/api/v1/worker` |
+## 🚀 Architecture
 
-## Project structure
+1. **Frontend**: React + Vite (located in `react-dashboard/`)
+2. **Backend**: Python + FastAPI (located in the root `/app` folder)
 
-```
-medintel/
-├── app/
-│   ├── main.py              # FastAPI app, mounts all 4 module routers
-│   ├── config.py            # pydantic-settings, reads .env
-│   ├── core/
-│   │   └── logging.py       # shared logger
-│   ├── db/
-│   │   └── session.py       # SQLAlchemy engine/session (local DB)
-│   └── modules/
-│       ├── knowledge_assistant/    # Module 1
-│       ├── healthcare_rag/         # Module 2
-│       ├── outbreak_prediction/    # Module 3
-│       └── health_worker_portal/   # Module 4
-│           each module has: router.py, schemas.py, service.py (+models.py where needed)
-├── data/
-│   ├── vector_store/        # FAISS index lives here (offline mode)
-│   └── local_db/            # SQLite file lives here (offline mode)
-├── tests/
-│   └── test_health.py       # smoke tests for app + all module pings
-├── requirements.txt
-├── .env.example
-└── .gitignore
-```
+*Note: The FastAPI backend is configured to statically serve the built React application at the `/` route.*
 
-## Getting started
+---
 
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+## 🛠️ Prerequisites
 
-cp .env.example .env            # then fill in real values as modules are built
+Before you begin, ensure you have the following installed:
+- **Node.js** (v18+ recommended)
+- **Python** (v3.9+ recommended)
 
-uvicorn app.main:app --reload
-```
+---
 
-Visit `http://127.0.0.1:8000/docs` for interactive Swagger UI covering all
-4 modules.
+## 💻 How to Run the Project (Development Mode)
 
-Run tests:
+To run the full stack locally for development, you need to open **two terminal windows**: one for the backend and one for the frontend.
 
-```bash
-pytest
-```
+### Terminal 1: Start the FastAPI Backend
 
-## Current status
+1. Open a terminal in the root directory (`medintel/`).
+2. Create and activate a Python virtual environment:
+   ```bash
+   # Windows
+   python -m venv venv
+   .\venv\Scripts\activate
 
-- [x] Folder structure + configs
-- [x] All 4 modules stubbed with working FastAPI routes, request/response schemas
-- [x] Local/offline DB wiring (SQLite via SQLAlchemy) for the Health Worker Portal
-- [x] Smoke tests confirming the app boots and every module responds
-- [ ] Module 1: wire up real LangChain + Llama 3 pipeline + language detection/translation
-- [ ] Module 2: OCR ingestion (pytesseract/pypdf) + FAISS indexing + RAG query chain
-- [ ] Module 3: train & load LSTM (case forecasting) and XGBoost (risk classification) models
-- [ ] Module 4: sync logic to push offline-logged records to a central server
-- [ ] Auth / security layer
-- [ ] WhatsApp integration mentioned in proposal (future module)
+   # Mac/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+3. Install the dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Copy the environment variables template:
+   ```bash
+   cp .env.example .env
+   ```
+5. Start the server:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+The backend API is now running at `http://127.0.0.1:8000`. You can view the API documentation at `http://127.0.0.1:8000/docs`.
 
-## Notes
+### Terminal 2: Start the React Frontend
 
-- Each module is self-contained (`router.py` / `schemas.py` / `service.py`) so
-  different team members can build out modules 1–4 in parallel without merge
-  conflicts.
-- `data/vector_store` and `data/local_db` are gitignored except for
-  `.gitkeep`, since these hold generated/runtime data.
+1. Open a second terminal and navigate to the `react-dashboard/` folder:
+   ```bash
+   cd react-dashboard
+   ```
+2. Install the Node dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+The frontend is now running at `http://localhost:5173`. Open this URL in your browser to interact with the MedIntel dashboard!
+
+---
+
+## 🚢 How to Build for Production
+
+If you want to build the app so that FastAPI serves the frontend (acting as a single application), follow these steps:
+
+1. Build the React app:
+   ```bash
+   cd react-dashboard
+   npm run build
+   ```
+   *This compiles the React code and outputs it into the `medintel/frontend/` folder.*
+
+2. Start the FastAPI server (from the root directory):
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+3. Open your browser and navigate to `http://127.0.0.1:8000`. 
+FastAPI will now serve the compiled React dashboard directly!
+
+---
+
+## 📂 Modules Overview
+
+- **AI Assistant (`/dashboard/assistant`)**: Chat interface with Emergency Intent Detection, Voice-to-Text simulation, and Language Selection.
+- **Knowledge Base (`/dashboard/rag`)**: RAG integration querying FAISS/local DB, featuring OCR document upload simulation.
+- **Outbreak Engine (`/dashboard/outbreak`)**: Interactive heatmaps and risk prediction models based on LSTM/XGBoost.
+- **Worker Portal (`/dashboard/worker`)**: Offline-first form entry for health workers in remote areas.
+- **Insurance Agent (`/dashboard/insurance`)**: Parses medical bills and policy PDFs to calculate coverage and deductibles.
