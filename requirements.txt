@@ -1,0 +1,30 @@
+# --- Core API ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# --- Module 1: AI Medical Knowledge Assistant ---
+langchain==0.3.3
+langchain-community==0.3.2
+
+# --- Module 2: Healthcare RAG System ---
+faiss-cpu==1.8.0
+pypdf==4.3.1
+pytesseract==0.3.13
+
+# --- Module 3: Outbreak Prediction Engine ---
+scikit-learn==1.5.2
+xgboost==2.1.1
+tensorflow==2.17.0   # LSTM
+pandas==2.2.3
+numpy==1.26.4
+
+# --- Module 4: Health Worker Portal (offline-first) ---
+sqlalchemy==2.0.35
+
+# --- Testing ---
+pytest==8.3.3
+httpx==0.27.2

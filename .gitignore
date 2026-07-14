@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+data/vector_store/*
+!data/vector_store/.gitkeep
+data/local_db/*
+!data/local_db/.gitkeep
+*.db
+*.h5
+*.gguf
+.pytest_cache/
+
+# Node/React
+node_modules/
+dist/
+.env.local
