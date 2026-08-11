@@ -33,7 +33,7 @@ export default function Landing() {
         </div>
 
         <div className="hero-image-container" style={{ right: '5%', top: '60%' }}>
-          <img src="/static/hero.png" alt="Futuristic Medical AI" style={{ filter: 'drop-shadow(0 0 60px rgba(59, 130, 246, 0.4))' }} />
+          <img src={`${import.meta.env.BASE_URL}hero.png`} alt="Futuristic Medical AI" style={{ filter: 'drop-shadow(0 0 60px rgba(59, 130, 246, 0.4))' }} />
         </div>
       </main>
 

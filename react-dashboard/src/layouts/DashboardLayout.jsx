@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   Heartbeat, 
   Robot, 
@@ -11,6 +11,8 @@ import {
 } from '@phosphor-icons/react';
 
 export default function DashboardLayout() {
+  const navigate = useNavigate();
+
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
@@ -69,8 +71,19 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="glass main-content">
-        <Outlet />
+      <main className="glass main-content" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '0 24px 16px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '16px' }}>
+          <button 
+            onClick={() => navigate('/')} 
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '6px 12px' }}
+          >
+            ← Back to Home
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <Outlet />
+        </div>
       </main>
     </div>
   );

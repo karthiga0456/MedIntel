@@ -1,15 +1,27 @@
 # MedIntel — Intelligent Public Health Ecosystem
 
-# MedIntel — Intelligent Public Health Ecosystem
-
-**MedIntel** is an AI-driven public health chatbot and dashboard for disease awareness, outbreak prediction, and offline health record management. 
+**MedIntel** is an AI-driven public health chatbot and dashboard for disease awareness, outbreak prediction, and offline health record management.
 
 This repository contains both the **FastAPI Backend** and the **React Dashboard** (Frontend).
 
 ## 🚀 Architecture
 
+```
+medintel/
+├── backend/            ← FastAPI backend (Python)
+│   ├── app/            ← FastAPI source package
+│   ├── data/           ← SQLite / FAISS / model files
+│   ├── tests/          ← pytest test suite
+│   ├── frontend/       ← built React output (served by FastAPI)
+│   ├── requirements.txt
+│   ├── .env
+│   └── .env.example
+├── react-dashboard/    ← React + Vite source
+└── venv/               ← Python virtual environment
+```
+
 1. **Frontend**: React + Vite (located in `react-dashboard/`)
-2. **Backend**: Python + FastAPI (located in the root `/app` folder)
+2. **Backend**: Python + FastAPI (located in `backend/`)
 
 *Note: The FastAPI backend is configured to statically serve the built React application at the `/` route.*
 
@@ -42,14 +54,11 @@ To run the full stack locally for development, you need to open **two terminal w
    ```
 3. Install the dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
-4. Copy the environment variables template:
+4. Navigate to the backend folder and start the server:
    ```bash
-   cp .env.example .env
-   ```
-5. Start the server:
-   ```bash
+   cd backend
    uvicorn app.main:app --reload
    ```
 The backend API is now running at `http://127.0.0.1:8000`. You can view the API documentation at `http://127.0.0.1:8000/docs`.
@@ -81,14 +90,15 @@ If you want to build the app so that FastAPI serves the frontend (acting as a si
    cd react-dashboard
    npm run build
    ```
-   *This compiles the React code and outputs it into the `medintel/frontend/` folder.*
+   *This compiles the React code and outputs it into the `backend/frontend/` folder.*
 
-2. Start the FastAPI server (from the root directory):
+2. Start the FastAPI server (from the `backend/` directory):
    ```bash
+   cd backend
    uvicorn app.main:app --reload
    ```
 
-3. Open your browser and navigate to `http://127.0.0.1:8000`. 
+3. Open your browser and navigate to `http://127.0.0.1:8000`.
 FastAPI will now serve the compiled React dashboard directly!
 
 ---

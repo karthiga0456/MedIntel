@@ -606,3 +606,138 @@ option {
   min-height: 500px;
   overflow: hidden;
 }
+
+/* ── Shared utility ──────────────────────────────────────────────────────── */
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.mt-2 { margin-top: 16px; }
+
+/* ── Secondary button ─────────────────────────────────────────────────────── */
+.btn-secondary {
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  font-family: var(--font-body);
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+/* ── Control pill (language selector, mode toggle) ────────────────────────── */
+.control-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+}
+
+/* ── Typing indicator animation ───────────────────────────────────────────── */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(1) { animation-delay: 0ms; }
+.typing-dot:nth-child(2) { animation-delay: 160ms; }
+.typing-dot:nth-child(3) { animation-delay: 320ms; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0);   opacity: 0.35; }
+  30%            { transform: translateY(-7px); opacity: 1; }
+}
+
+/* ── Government health scheme badge ──────────────────────────────────────── */
+.scheme-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #34d399;
+  max-width: fit-content;
+  animation: fadeUp 0.3s ease;
+}
+
+/* ── Health disclaimer box ────────────────────────────────────────────────── */
+.disclaimer-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 14px;
+  background: rgba(59, 130, 246, 0.07);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-style: italic;
+  max-width: 520px;
+}
+.disclaimer-box svg { flex-shrink: 0; margin-top: 1px; color: var(--accent-cyan); }
+
+/* ── Emergency banner ─────────────────────────────────────────────────────── */
+.emergency-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: var(--border-radius-md);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  animation: fadeUp 0.4s ease;
+}
+
+.emergency-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--danger-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+  animation: pulse 1.5s infinite;
+}
+
+/* ── Emergency avatar variant ─────────────────────────────────────────────── */
+.avatar-emergency {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: var(--danger-red);
+}
+
+/* ── Pulse animation (used by emergency icon) ─────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50%       { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}

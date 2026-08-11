@@ -23,15 +23,28 @@ export default function KnowledgeBase() {
     }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     e.preventDefault();
-    setUploadedFile({ name: "medical_report_scan.pdf", status: 'processing' });
+    let file = null;
     
-    // Simulate Tesseract OCR Processing
-    setTimeout(() => {
-      setUploadedFile({ name: "medical_report_scan.pdf", status: 'done' });
-      setQuery("Summarize the findings from the uploaded medical report scan.");
-    }, 2000);
+    if (e.type === 'drop') {
+      file = e.dataTransfer.files[0];
+    } else if (e.target.files) {
+      file = e.target.files[0];
+    }
+    
+    if (!file) return;
+
+    setUploadedFile({ name: file.name, status: 'processing' });
+    
+    try {
+      await api.rag.uploadDocument(file);
+      setUploadedFile({ name: file.name, status: 'done' });
+      setQuery(`Summarize the findings from the uploaded document: ${file.name}`);
+    } catch (error) {
+      setUploadedFile({ name: file.name, status: 'error' });
+      setResult("Error uploading document. Please try again.");
+    }
   };
 
   return (
@@ -44,11 +57,12 @@ export default function KnowledgeBase() {
       <div className="glass-panel">
         
         {/* OCR File Upload Stub */}
-        <div className="upload-zone" onDrop={handleFileUpload} onDragOver={(e) => e.preventDefault()} onClick={handleFileUpload}>
+        <label className="upload-zone" onDrop={handleFileUpload} onDragOver={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
           <UploadSimple weight="bold" />
           <h3 style={{ marginBottom: '8px' }}>Upload Document for OCR</h3>
           <p className="subtitle" style={{ marginBottom: 0 }}>Drag & drop PDFs or Images to extract text</p>
-        </div>
+          <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handleFileUpload} />
+        </label>
 
         {uploadedFile && (
           <div className="file-item">
@@ -56,10 +70,14 @@ export default function KnowledgeBase() {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600 }}>{uploadedFile.name}</div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                {uploadedFile.status === 'processing' ? 'Extracting text using Tesseract OCR...' : 'Extraction complete. Ready for RAG.'}
+                {uploadedFile.status === 'processing' ? 'Extracting text and generating vectors...' : 
+                 uploadedFile.status === 'error' ? 'Extraction failed.' :
+                 'Extraction complete. Ready for RAG.'}
               </div>
             </div>
-            {uploadedFile.status === 'done' ? <CheckCircle size={24} color="var(--accent-green)" /> : <div className="typing-dot" style={{ background: 'var(--accent-cyan)' }}></div>}
+            {uploadedFile.status === 'done' ? <CheckCircle size={24} color="var(--accent-green)" /> : 
+             uploadedFile.status === 'error' ? <WarningCircle size={24} color="var(--danger-red)" /> :
+             <div className="typing-dot" style={{ background: 'var(--accent-cyan)' }}></div>}
           </div>
         )}
 

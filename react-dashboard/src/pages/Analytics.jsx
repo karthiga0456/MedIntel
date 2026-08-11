@@ -1,21 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { ChartPieSlice, DownloadSimple } from '@phosphor-icons/react';
+import { api } from '../services/api';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
 export default function Analytics() {
-  
-  // Dummy data for Line Chart (Disease Trends)
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const summary = await api.analytics.getSummary();
+        setData(summary);
+      } catch (error) {
+        console.error("Failed to load analytics", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const lineData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+    labels: data?.disease_trends?.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
     datasets: [
       {
         fill: true,
         label: 'Dengue Cases',
-        data: [65, 59, 80, 81, 56, 55, 40],
+        data: data?.disease_trends?.data || [0, 0, 0, 0, 0, 0, 0],
         borderColor: 'rgba(6, 182, 212, 1)',
         backgroundColor: 'rgba(6, 182, 212, 0.2)',
         tension: 0.4
@@ -36,13 +52,12 @@ export default function Analytics() {
     }
   };
 
-  // Dummy data for Bar Chart (Resource Allocation)
   const barData = {
-    labels: ['Coimbatore', 'Chennai', 'Madurai', 'Salem', 'Trichy'],
+    labels: data?.resource_allocation?.labels || ['Coimbatore', 'Chennai', 'Madurai', 'Salem', 'Trichy'],
     datasets: [
       {
         label: 'Medical Kits Distributed',
-        data: [120, 190, 80, 50, 70],
+        data: data?.resource_allocation?.data || [0, 0, 0, 0, 0],
         backgroundColor: 'rgba(16, 185, 129, 0.6)',
       }
     ]
@@ -90,16 +105,20 @@ export default function Analytics() {
       
       <div className="glass-panel mt-4">
         <h3 style={{ marginBottom: '16px', fontSize: '18px' }}>Key Metrics Summary</h3>
-        <div className="grid-2">
-          <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px' }}>Total Cases (YTD)</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>12,450</div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px' }}>Loading analytics...</div>
+        ) : (
+          <div className="grid-2">
+            <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px' }}>Total Cases (YTD)</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{data?.total_cases_ytd || 0}</div>
+            </div>
+            <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px' }}>Active Outbreak Alerts</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--danger-red)' }}>{data?.active_outbreak_alerts || 0}</div>
+            </div>
           </div>
-          <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px' }}>Active Outbreak Alerts</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--danger-red)' }}>3</div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

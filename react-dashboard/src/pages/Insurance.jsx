@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { FileText, UploadSimple, Calculator, CheckCircle, WarningCircle, ShieldCheck } from '@phosphor-icons/react';
 import { api } from '../services/api';
 
@@ -23,11 +23,22 @@ export default function Insurance() {
     }
   };
 
-  const handleUpload = (type) => {
+  const billInputRef = useRef(null);
+  const policyInputRef = useRef(null);
+
+  const handleUploadClick = (type) => {
     if (type === 'bill') {
-      setBillFile({ name: 'hospital_bill_024.pdf' });
+      billInputRef.current?.click();
     } else {
-      setPolicyFile({ name: 'health_insurance_policy_2026.pdf' });
+      policyInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (type, e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (type === 'bill') setBillFile(file);
+      else setPolicyFile(file);
     }
   };
 
@@ -43,7 +54,14 @@ export default function Insurance() {
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={20} color="var(--accent-yellow)" /> 1. Upload Medical Bill
           </h3>
-          <div className="upload-zone" style={{ padding: '24px' }} onClick={() => handleUpload('bill')}>
+          <input 
+            type="file" 
+            accept=".pdf" 
+            ref={billInputRef} 
+            onChange={(e) => handleFileChange('bill', e)} 
+            style={{ display: 'none' }} 
+          />
+          <div className="upload-zone" style={{ padding: '24px', cursor: 'pointer' }} onClick={() => handleUploadClick('bill')}>
             <UploadSimple weight="bold" />
             <h4 style={{ marginBottom: '8px' }}>Upload Bill</h4>
             <p className="subtitle" style={{ fontSize: '13px', marginBottom: 0 }}>PDF or Image</p>
@@ -61,7 +79,14 @@ export default function Insurance() {
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShieldCheck size={20} color="var(--accent-yellow)" /> 2. Upload Insurance Policy
           </h3>
-          <div className="upload-zone" style={{ padding: '24px' }} onClick={() => handleUpload('policy')}>
+          <input 
+            type="file" 
+            accept=".pdf" 
+            ref={policyInputRef} 
+            onChange={(e) => handleFileChange('policy', e)} 
+            style={{ display: 'none' }} 
+          />
+          <div className="upload-zone" style={{ padding: '24px', cursor: 'pointer' }} onClick={() => handleUploadClick('policy')}>
             <UploadSimple weight="bold" />
             <h4 style={{ marginBottom: '8px' }}>Upload Policy</h4>
             <p className="subtitle" style={{ fontSize: '13px', marginBottom: 0 }}>PDF document</p>
