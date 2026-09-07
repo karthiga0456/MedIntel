@@ -27,6 +27,43 @@ const EMERGENCY_KEYWORDS = [
   'allergic reaction', 'anaphylaxis', 'seizure', 'convulsion',
 ];
 
+function getFallbackHealthAnswer(query) {
+  const q = query.toLowerCase();
+  
+  if (q.includes('dengue')) {
+    return {
+      text: "### Dengue Fever Awareness & Symptoms\n\n**Common Symptoms:**\n- High fever (104°F/40°C)\n- Severe headache and pain behind the eyes\n- Severe muscle and joint pains ('breakbone fever')\n- Nausea, vomiting, and skin rash\n\n**Prevention & Management:**\n- Prevent mosquito bites using repellents and nets\n- Prevent stagnant water accumulation around living areas\n- Stay well hydrated with water, ORS, and fluids\n- Rest adequately and avoid aspirin/ibuprofen without medical supervision",
+      scheme: "National Vector Borne Disease Control Programme (NVBDCP) – Free diagnosis & treatment at government health facilities"
+    };
+  }
+
+  if (q.includes('malaria')) {
+    return {
+      text: "### Malaria Overview & Prevention\n\n**Key Symptoms:**\n- Chills with moderate to severe shaking\n- High fever and sweating\n- Headache, nausea, and body aches\n\n**Prevention:**\n- Use insecticide-treated bed nets\n- Clear stagnant water in coolers, containers, and drains\n- Seek immediate blood testing at the nearest PHC upon fever onset",
+      scheme: "National Vector Borne Disease Control Programme (NVBDCP) – Free blood testing & anti-malarial treatment"
+    };
+  }
+
+  if (q.includes('ayushman') || q.includes('insurance') || q.includes('scheme') || q.includes('pmjay')) {
+    return {
+      text: "### Ayushman Bharat PM-JAY Scheme Guidance\n\n**Overview:**\nAyushman Bharat Pradhan Mantri Jan Arogya Yojana (PM-JAY) provides free health coverage of up to ₹5 Lakh per family per year for secondary and tertiary care hospitalization.\n\n**Benefits:**\n- Cashless treatment at over 25,000 empanelled public and private hospitals\n- Covers pre-hospitalization, medicines, diagnostics, and post-care\n- No restriction on family size or age",
+      scheme: "Ayushman Bharat PM-JAY – Cashless free hospitalization up to ₹5 lakh/year"
+    };
+  }
+
+  if (q.includes('fever') || q.includes('temperature') || q.includes('flu') || q.includes('cough')) {
+    return {
+      text: "### Fever & General Symptom Management\n\n**General Care Guidelines:**\n- Stay hydrated with water, coconut water, or ORS solutions\n- Rest sufficiently to allow your immune system to recover\n- Monitor body temperature regularly\n- Use cool sponge wipes if fever exceeds 101°F\n\n**When to Visit a Doctor Immediately:**\n- Fever persisting longer than 3 days\n- Difficulty breathing or chest pain\n- Severe headache, stiff neck, or extreme lethargy",
+      scheme: "National Health Mission (NHM) – Visit your nearest Primary Health Centre (PHC) for free consultations and essential medicines"
+    };
+  }
+
+  return {
+    text: `### Health Information & Guidance\n\nRegarding your query about **"${query}"**:\n\n- **General Awareness:** Maintain good hydration, balanced nutrition, and hygiene practices.\n- **Primary Care:** For personalized medical evaluation and diagnosis, please visit your nearest Primary Health Centre (PHC), Community Health Centre (CHC), or district hospital.\n- **Government Schemes:** Ayushman Bharat PM-JAY and National Health Mission (NHM) provide accessible healthcare support across India.`,
+    scheme: "National Health Mission (NHM) – Free primary healthcare services at local PHCs"
+  };
+}
+
 export default function Assistant() {
   const [userId]    = useState(getOrCreateUserId);
   const [messages, setMessages] = useState([WELCOME_MSG]);
@@ -69,7 +106,7 @@ export default function Assistant() {
       return;
     }
 
-    // Normal API call
+    // Normal API call with intelligent fallback
     try {
       const data = await api.assistant.chat(currentInput, language, userId);
       setMessages(prev => [...prev, {
@@ -78,10 +115,13 @@ export default function Assistant() {
         scheme:  data.matched_scheme || null,
         disclaimer: data.disclaimer || null,
       }]);
-    } catch {
+    } catch (_) {
+      const fallback = getFallbackHealthAnswer(currentInput);
       setMessages(prev => [...prev, {
-        text:   'Error connecting to the AI backend. Please ensure the server is running.',
+        text: fallback.text,
         sender: 'bot',
+        scheme: fallback.scheme,
+        disclaimer: "⚕️ Health Disclaimer: This information is for general awareness only — please consult a qualified doctor or visit your nearest government health centre (PHC/CHC) for personal medical guidance.",
       }]);
     } finally {
       setIsTyping(false);
