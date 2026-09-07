@@ -2,6 +2,10 @@
 
 **MedIntel** is an AI-driven public health chatbot and dashboard for disease awareness, outbreak prediction, and offline health record management.
 
+- **Frontend**: React + Vite (PWA)
+- **Backend**: FastAPI + Python (SQLAlchemy / Groq Cloud AI / FAISS)
+- **Deployment**: Vercel Serverless & Static Hosting
+
 This repository contains both the **FastAPI Backend** and the **React Dashboard** (Frontend).
 
 ## 🚀 Architecture
