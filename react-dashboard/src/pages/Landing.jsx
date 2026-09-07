@@ -7,10 +7,19 @@ export default function Landing() {
 
   return (
     <div className="landing-container">
-      <nav className="landing-nav" style={{ padding: '32px 64px 0' }}>
-        <div className="brand" style={{ fontSize: '24px', fontWeight: '800', cursor: 'pointer' }} onClick={() => navigate('/')}>
+      <nav className="landing-nav" style={{ padding: '32px 64px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="brand" style={{ fontSize: '24px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => navigate('/')}>
           <Heartbeat size={32} weight="fill" color="var(--accent-yellow)" />
           MedIntel
+        </div>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <button 
+            className="btn-pill-white" 
+            style={{ background: 'var(--accent-yellow)', color: '#0f172a', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '10px 24px', borderRadius: '30px' }} 
+            onClick={() => navigate('/login')}
+          >
+            <ShieldCheck weight="bold" size={20} /> Login
+          </button>
         </div>
       </nav>
 

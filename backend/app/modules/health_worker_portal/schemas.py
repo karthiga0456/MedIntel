@@ -1,9 +1,6 @@
-"""
-Pydantic request/response models for the Health Worker Portal.
-"""
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict
 
 
 class HealthRecordCreate(BaseModel):
@@ -28,3 +25,21 @@ class HealthRecordResponse(BaseModel):
     created_at: datetime
     synced: bool = False
 
+
+class FieldVisitCreate(BaseModel):
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    village: str
+    symptoms: Optional[str] = None
+    vaccination_administered: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_date: Optional[str] = None
+
+
+class WorkerProfileResponse(BaseModel):
+    worker_id: str
+    name: str
+    employee_code: Optional[str] = None
+    assigned_villages: List[str] = []
+    total_visits_logged: int = 0
+    total_patients_assisted: int = 0

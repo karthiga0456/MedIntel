@@ -182,13 +182,92 @@ def _match_scheme(text: str) -> Optional[str]:
     return None
 
 
-# ── Main service class ────────────────────────────────────────────────────────
+# ── Emergency keyword matcher ─────────────────────────────────────────────────
+
+EMERGENCY_KEYWORDS: list[str] = [
+    "chest pain", "heart attack", "difficulty breathing", "shortness of breath",
+    "severe bleeding", "unconscious", "loss of consciousness", "stroke",
+    "anaphylaxis", "poison", "poisoning", "choking", "severe burn", "seizure"
+]
+
+
+def _detect_emergency(text: str) -> Optional[str]:
+    lower = text.lower()
+    for kw in EMERGENCY_KEYWORDS:
+        if kw in lower:
+            return kw
+    return None
+
+
+
+import httpx
+from langchain_core.messages import AIMessage
+
+class GroqLLM:
+    """Lightweight wrapper for Groq Cloud API with multi-model fallback resilience."""
+    FALLBACK_MODELS = [
+        "qwen/qwen3.8-27b",
+        "groq/compound-mini",
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.6-27b",
+    ]
+
+    def __init__(self, api_key: str, model: str = "qwen/qwen3.8-27b"):
+        self.api_key = api_key
+        self.primary_model = model
+
+    def invoke(self, messages):
+        formatted = []
+        for m in messages:
+            if hasattr(m, 'type'):
+                role = "system" if m.type == "system" else ("assistant" if m.type == "ai" else "user")
+                formatted.append({"role": role, "content": m.content})
+            else:
+                formatted.append({"role": "user", "content": str(m)})
+
+        models_to_try = [self.primary_model] + [m for m in self.FALLBACK_MODELS if m != self.primary_model]
+        last_error = None
+
+        for model in models_to_try:
+            try:
+                response = httpx.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": formatted,
+                        "temperature": 0.3,
+                        "max_tokens": 400,
+                    },
+                    timeout=25.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data["choices"][0]["message"]["content"]
+                    return AIMessage(content=content)
+                elif response.status_code == 429:
+                    logger.warning(f"Groq model '{model}' rate limited (429). Attempting fallback model...")
+                    continue
+                else:
+                    last_error = f"Groq API error {response.status_code}: {response.text[:200]}"
+                    logger.warning(f"Groq model '{model}' returned error: {last_error}. Attempting fallback...")
+                    continue
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Groq model '{model}' request failed: {e}. Attempting fallback...")
+                continue
+
+        raise RuntimeError(f"All Groq AI models encountered errors. Last error: {last_error}")
+
 
 class KnowledgeAssistantService:
     """
-    Wraps a Google Gemini LLM (via LangChain) for health-aware conversations.
-    The LLM client is lazy-loaded on first use so the app starts even when
-    GOOGLE_API_KEY is not yet configured.
+    Wraps an AI LLM (Groq, Gemini, or Ollama fallback) for health-aware conversations.
+    The LLM client is lazy-loaded on first use so the app starts smoothly.
     """
 
     def __init__(self):
@@ -197,11 +276,19 @@ class KnowledgeAssistantService:
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _get_llm(self):
-        """Return (and cache) the LangChain LLM client."""
+        """Return (and cache) the LLM client."""
         if self._llm is not None:
             return self._llm
 
-        if settings.google_api_key:
+        if settings.groq_api_key and settings.groq_api_key != "your_groq_api_key_here":
+            try:
+                self._llm = GroqLLM(api_key=settings.groq_api_key, model=settings.groq_model or "qwen/qwen3.6-27b")
+                logger.info("Groq AI client initialised successfully.")
+                return self._llm
+            except Exception as e:
+                logger.warning(f"Groq AI failed: {e}. Falling back to next provider...")
+
+        if settings.google_api_key and settings.google_api_key != "your_google_api_key_here":
             try:
                 from langchain_google_genai import ChatGoogleGenerativeAI
                 self._llm = ChatGoogleGenerativeAI(
@@ -222,7 +309,7 @@ class KnowledgeAssistantService:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def chat(self, request: ChatRequest) -> ChatResponse:
+    def chat(self, request: ChatRequest, db=None) -> ChatResponse:
         """
         Process a chat message and return an AI health response.
         Handles graceful degradation when the API key is missing.
@@ -239,23 +326,57 @@ class KnowledgeAssistantService:
         # 1. Scheme matching from the user's query
         matched_scheme = _match_scheme(request.message)
 
-        # 2. Graceful degradation — no API key configured
+        # 2. Emergency keyword check
+        emergency_kw = _detect_emergency(request.message)
+        is_emergency = bool(emergency_kw)
+        emergency_details = None
+        emergency_header = ""
+
+        if is_emergency:
+            emergency_details = f"Emergency symptom identified: {emergency_kw}. Prompt medical intervention advised."
+            emergency_header = (
+                f"🚨 **MEDICAL EMERGENCY ADVISORY:**\n\n"
+                f"You reported symptoms relating to **{emergency_kw.upper()}**.\n"
+                f"• Call **112** (National Emergency) or **108** (Ambulance) IMMEDIATELY.\n"
+                f"• Proceed to the nearest hospital casualty or emergency ward without delay.\n"
+                f"• Do not attempt self-medication.\n\n---\n\n"
+            )
+            if db is not None:
+                try:
+                    from app.db.models import EmergencyCase
+                    ec = EmergencyCase(
+                        patient_name=user_id,
+                        patient_id=request.patient_id,
+                        symptoms=request.message,
+                        severity="CRITICAL",
+                        location=request.location or "Reported via AI Assistant",
+                        status="PENDING",
+                    )
+                    db.add(ec)
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Error logging emergency case: {e}")
+
+        # 3. Graceful degradation — no API key configured
         if not settings.google_api_key:
             logger.warning("Chat called but GOOGLE_API_KEY is not set. Returning guidance message.")
+            base_reply = (
+                "⚠️ **AI Assistant not yet configured.**\n\n"
+                "The AI engine requires a Google Gemini API key. "
+                "Please ask your administrator to add `GOOGLE_API_KEY=<key>` "
+                "to the `.env` file and restart the backend.\n\n"
+                "You can get a **free** API key at: https://aistudio.google.com/"
+            )
             return ChatResponse(
-                reply=(
-                    "⚠️ **AI Assistant not yet configured.**\n\n"
-                    "The AI engine requires a Google Gemini API key. "
-                    "Please ask your administrator to add `GOOGLE_API_KEY=<key>` "
-                    "to the `.env` file and restart the backend.\n\n"
-                    "You can get a **free** API key at: https://aistudio.google.com/"
-                ),
+                reply=(emergency_header + base_reply) if is_emergency else base_reply,
                 language=request.language,
                 matched_scheme=matched_scheme,
-                disclaimer=None,           # no disclaimer for configuration messages
+                disclaimer=DISCLAIMER if is_emergency else None,
+                is_emergency=is_emergency,
+                emergency_details=emergency_details,
             )
 
-        # 3. Build the LangChain message list
+        # 4. Build the LangChain message list
         try:
             from langchain_core.messages import (  # noqa: lazy import
                 AIMessage,
@@ -296,11 +417,14 @@ class KnowledgeAssistantService:
             if not matched_scheme:
                 matched_scheme = _match_scheme(reply_text)
 
+            final_reply = (emergency_header + reply_text) if is_emergency else reply_text
             return ChatResponse(
-                reply=reply_text,
+                reply=final_reply,
                 language=request.language,
                 matched_scheme=matched_scheme,
                 disclaimer=DISCLAIMER,
+                is_emergency=is_emergency,
+                emergency_details=emergency_details,
             )
 
         except ValueError as ve:

@@ -27,7 +27,7 @@ def get_db():
 def init_db():
     """Create all tables. Call once on startup / first run."""
     # Import all models here so metadata is registered before create_all
-    from app.modules.health_worker_portal import models as worker_models
-    from app.modules.auth import models as auth_models
+    import app.db.models  # noqa: F401
     
     Base.metadata.create_all(bind=engine)
+

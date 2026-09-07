@@ -20,5 +20,13 @@ try:
         print("Admin user created successfully: admin@medintel.gov / adminpassword")
     else:
         print("Admin user already exists.")
+
+    existing_worker = get_user_by_email(db, "worker@medintel.gov")
+    if not existing_worker:
+        worker_user = UserCreate(email="worker@medintel.gov", password="workerpassword", role="worker")
+        create_user(db, worker_user)
+        print("Worker user created successfully: worker@medintel.gov / workerpassword")
+    else:
+        print("Worker user already exists.")
 finally:
     db.close()

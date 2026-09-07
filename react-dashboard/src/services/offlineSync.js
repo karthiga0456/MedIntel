@@ -2,22 +2,56 @@ import localforage from 'localforage';
 import { api } from './api';
 
 localforage.config({
-  name: 'MedIntel',
-  storeName: 'health_records_queue'
+  name: 'MedIntelDB',
+  storeName: 'offline_sync_store',
 });
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'offline-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
+}
+
 class OfflineSyncService {
-  async queueRecord(recordData) {
-    const queue = await this.getQueue();
-    // Add unique internal ID for tracking in queue
-    const item = {
-      _queue_id: Date.now().toString() + Math.random().toString(36).substring(2),
-      timestamp: new Date().toISOString(),
-      ...recordData
-    };
-    queue.push(item);
-    await localforage.setItem('sync_queue', queue);
-    return item;
+  constructor() {
+    this.listeners = new Set();
+    this.status = navigator.onLine ? 'ONLINE' : 'OFFLINE'; // ONLINE, OFFLINE, SYNCING, SYNCED, SYNC ERROR
+    this.lastSyncTime = null;
+    this.isSyncing = false;
+
+    // Listen to network changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.setStatus('ONLINE');
+        this.syncQueue();
+      });
+      window.addEventListener('offline', () => {
+        this.setStatus('OFFLINE');
+      });
+    }
+
+    // Load last sync timestamp from local storage
+    if (typeof localStorage !== 'undefined') {
+      this.lastSyncTime = localStorage.getItem('medintel_last_sync');
+    }
+  }
+
+  subscribe(listener) {
+    this.listeners.add(listener);
+    listener({ status: this.status, lastSyncTime: this.lastSyncTime });
+    return () => this.listeners.delete(listener);
+  }
+
+  notify() {
+    for (const listener of this.listeners) {
+      listener({ status: this.status, lastSyncTime: this.lastSyncTime });
+    }
+  }
+
+  setStatus(newStatus) {
+    this.status = newStatus;
+    this.notify();
   }
 
   async getQueue() {
@@ -25,43 +59,99 @@ class OfflineSyncService {
     return queue || [];
   }
 
-  async clearQueue() {
-    await localforage.setItem('sync_queue', []);
+  async getFailedQueue() {
+    const failed = await localforage.getItem('failed_sync_queue');
+    return failed || [];
+  }
+
+  async queueOperation(entityType, payload) {
+    const queue = await this.getQueue();
+    const item = {
+      client_uuid: generateUUID(),
+      entity_type: entityType, // 'health_record', 'patient', 'field_visit', 'vaccination'
+      payload,
+      timestamp: new Date().toISOString(),
+      retry_count: 0,
+    };
+
+    queue.push(item);
+    await localforage.setItem('sync_queue', queue);
+
+    // If online, immediately attempt sync
+    if (navigator.onLine && !this.isSyncing) {
+      this.syncQueue();
+    } else {
+      this.setStatus('OFFLINE');
+    }
+
+    return item;
+  }
+
+  async queueRecord(recordData) {
+    return this.queueOperation('health_record', recordData);
   }
 
   async syncQueue() {
     if (!navigator.onLine) {
-      console.log("OfflineSync: Cannot sync, currently offline.");
+      this.setStatus('OFFLINE');
       return;
     }
 
+    if (this.isSyncing) return;
+
     const queue = await this.getQueue();
-    if (queue.length === 0) return;
+    if (queue.length === 0) {
+      this.setStatus('ONLINE');
+      return;
+    }
 
-    console.log(`OfflineSync: Found ${queue.length} items to sync.`);
+    this.isSyncing = true;
+    this.setStatus('SYNCING');
 
-    let successfulSyncs = [];
-    
-    // Attempt to sync each record
-    for (const item of queue) {
-      try {
-        // Strip out the internal queue ID before sending to backend
-        const { _queue_id, timestamp, ...payload } = item;
-        await api.worker.submitRecord(payload);
-        successfulSyncs.push(_queue_id);
-      } catch (error) {
-        console.error("OfflineSync: Failed to sync item", item, error);
-        // Break early if we hit an error, network might be flaky again
-        break;
+    try {
+      // Use batch endpoint on backend
+      const response = await api.sync.batch(queue);
+      const syncedUuids = new Set(response.synced_uuids || []);
+
+      // Filter remaining un-synced or failed
+      const remainingQueue = queue.filter((item) => !syncedUuids.has(item.client_uuid));
+
+      if (response.errors && response.errors.length > 0) {
+        const failedQueue = await this.getFailedQueue();
+        failedQueue.push(...response.errors);
+        await localforage.setItem('failed_sync_queue', failedQueue);
       }
-    }
 
-    // Remove successful syncs from queue
-    if (successfulSyncs.length > 0) {
-      const remainingQueue = queue.filter(item => !successfulSyncs.includes(item._queue_id));
       await localforage.setItem('sync_queue', remainingQueue);
-      console.log(`OfflineSync: Synced ${successfulSyncs.length} items. ${remainingQueue.length} remaining.`);
+
+      this.lastSyncTime = new Date().toLocaleTimeString();
+      localStorage.setItem('medintel_last_sync', this.lastSyncTime);
+
+      if (remainingQueue.length > 0) {
+        this.setStatus('SYNC ERROR');
+      } else {
+        this.setStatus('SYNCED');
+        setTimeout(() => {
+          if (navigator.onLine) this.setStatus('ONLINE');
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Batch sync encountered network failure:', err);
+      this.setStatus('SYNC ERROR');
+    } finally {
+      this.isSyncing = false;
     }
+  }
+
+  async retryFailed() {
+    const failed = await this.getFailedQueue();
+    if (failed.length === 0) return;
+
+    const queue = await this.getQueue();
+    queue.push(...failed);
+    await localforage.setItem('sync_queue', queue);
+    await localforage.setItem('failed_sync_queue', []);
+    return this.syncQueue();
   }
 }
 

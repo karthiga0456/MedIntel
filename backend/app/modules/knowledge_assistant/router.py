@@ -7,7 +7,9 @@ Endpoints:
   DELETE /api/v1/assistant/history/{user_id} — Clear conversation history
   GET  /api/v1/assistant/ping              — Health check
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.db.session import get_db
 
 from app.modules.knowledge_assistant.schemas import (
     ChatRequest,
@@ -20,16 +22,17 @@ router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, db: Session = Depends(get_db)):
     """
     Send a health query to the AI Medical Knowledge Assistant.
 
     - Supports multilingual responses (pass `language` ISO code: en/hi/ta/te/bn/kn/ml)
     - Maintains per-user conversation history when `user_id` is provided
     - Automatically detects and surfaces relevant Indian government health schemes
+    - Performs emergency triage; persists critical alerts
     - Appends a health safety disclaimer to all responses
     """
-    return knowledge_assistant_service.chat(request)
+    return knowledge_assistant_service.chat(request, db=db)
 
 
 @router.get("/history/{user_id}", response_model=ChatHistoryResponse)

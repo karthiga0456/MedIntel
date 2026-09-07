@@ -14,4 +14,7 @@ data/local_db/*
 # Node/React
 node_modules/
 dist/
+# Environment variables
+.env
+*.env
 .env.local

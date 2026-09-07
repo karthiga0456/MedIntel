@@ -12,10 +12,12 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Module 1: Knowledge Assistant
-    llm_provider: str = "gemini"               # "gemini" | "llama3"
+    llm_provider: str = "groq"                 # "groq" | "gemini" | "llama3"
     llm_model_path: str = "./models/llama-3-8b-instruct.gguf"
     llm_api_base: str = ""
     google_api_key: str = ""                   # required for Gemini / langchain-google-genai
+    groq_api_key: str = ""                     # required for Groq API
+    groq_model: str = "qwen/qwen3.6-27b"
 
     # Module 2: Healthcare RAG
     vector_db_path: str = "./data/vector_store"

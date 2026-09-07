@@ -74,6 +74,27 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        <div style={{ marginTop: '20px', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '10px', fontSize: '13px', color: 'var(--text-secondary)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <div style={{ fontWeight: 600, color: 'var(--accent-yellow)', marginBottom: '8px', textAlign: 'center' }}>Demo Quick Login Options</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <button 
+              type="button" 
+              style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#34d399', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+              onClick={() => { setEmail('worker@medintel.gov'); setPassword('workerpassword'); }}
+            >
+              👤 Standard User<br/>(Core Features Only)
+            </button>
+            <button 
+              type="button" 
+              style={{ background: 'rgba(96, 165, 250, 0.15)', border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60a5fa', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+              onClick={() => { setEmail('admin@medintel.gov'); setPassword('adminpassword'); }}
+            >
+              🛡️ System Admin<br/>(All Features)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,3 @@
-"""
-Pydantic request/response models for the AI Medical Knowledge Assistant.
-"""
 from pydantic import BaseModel, model_validator
 from typing import Optional, List, Literal
 
@@ -9,6 +6,8 @@ class ChatRequest(BaseModel):
     message: str
     language: str = "en"          # ISO 639-1: "en", "hi", "ta", "te", "bn", "kn", "ml"
     user_id: Optional[str] = None # used to maintain per-user conversation history
+    patient_id: Optional[str] = None
+    location: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -16,6 +15,8 @@ class ChatResponse(BaseModel):
     language: str
     matched_scheme: Optional[str] = None  # Indian government health scheme, if detected
     disclaimer: Optional[str] = None      # health safety notice
+    is_emergency: bool = False
+    emergency_details: Optional[str] = None
 
 
 class ChatMessage(BaseModel):
