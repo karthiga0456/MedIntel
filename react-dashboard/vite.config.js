@@ -20,9 +20,9 @@ export default defineConfig(({ command }) => ({
       }
     })
   ],
-  base: command === 'serve' ? '/' : '/static/',
+  base: '/',
   build: {
-    outDir: '../backend/frontend',
+    outDir: 'dist',
     emptyOutDir: true
   },
   server: {

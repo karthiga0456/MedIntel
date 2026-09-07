@@ -1,14 +1,10 @@
 {
   "buildCommand": "cd react-dashboard && npm run build",
-  "outputDirectory": "backend/frontend",
+  "outputDirectory": "react-dashboard/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
-    },
-    {
-      "source": "/static/(.*)",
-      "destination": "/$1"
     },
     {
       "source": "/(.*)",
