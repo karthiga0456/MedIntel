@@ -1,29 +1,18 @@
 {
-  "version": 2,
-  "builds": [
+  "buildCommand": "cd react-dashboard && npm run build",
+  "outputDirectory": "backend/frontend",
+  "rewrites": [
     {
-      "src": "react-dashboard/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
     },
     {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
+      "source": "/static/(.*)",
+      "destination": "/$1"
     },
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/react-dashboard/dist/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
