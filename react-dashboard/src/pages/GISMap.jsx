@@ -10,19 +10,64 @@ import {
   Info, 
   ShieldCheck, 
   Pulse,
-  Compass
+  Compass,
+  MagnifyingGlass,
+  Layers,
+  Globe
 } from '@phosphor-icons/react';
 import { api } from '../services/api';
+
+const TILE_PROVIDERS = {
+  carto_dark: {
+    name: 'CARTO Dark (Surveillance)',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  },
+  osm_standard: {
+    name: 'OpenStreetMap (Standard)',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    subdomains: 'abc',
+    maxZoom: 19
+  },
+  esri_satellite: {
+    name: 'Esri Satellite (Imagery)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    subdomains: '',
+    maxZoom: 18
+  },
+  carto_light: {
+    name: 'CARTO Positron (Light)',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }
+};
 
 export default function GISMap() {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layerGroupRef = useRef(null);
+  const tileLayerRef = useRef(null);
+  const searchMarkerRef = useRef(null);
 
   const [layersData, setLayersData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedEntity, setSelectedEntity] = useState(null);
+
+  // Map Tile Style State
+  const [activeTileStyle, setActiveTileStyle] = useState('carto_dark');
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Layer Toggles
   const [showClusters, setShowClusters] = useState(true);
@@ -59,12 +104,14 @@ export default function GISMap() {
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Dark sleek CartoDB tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19
+    const initialProvider = TILE_PROVIDERS.carto_dark;
+    const tileLayer = L.tileLayer(initialProvider.url, {
+      attribution: initialProvider.attribution,
+      subdomains: initialProvider.subdomains,
+      maxZoom: initialProvider.maxZoom
     }).addTo(map);
+
+    tileLayerRef.current = tileLayer;
 
     const layerGroup = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
@@ -75,6 +122,75 @@ export default function GISMap() {
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // Switch Base Map Tile Provider dynamically
+  const handleTileStyleChange = (styleKey) => {
+    setActiveTileStyle(styleKey);
+    if (!mapInstanceRef.current || !tileLayerRef.current) return;
+
+    const newProvider = TILE_PROVIDERS[styleKey];
+    mapInstanceRef.current.removeLayer(tileLayerRef.current);
+
+    const newTileLayer = L.tileLayer(newProvider.url, {
+      attribution: newProvider.attribution,
+      subdomains: newProvider.subdomains,
+      maxZoom: newProvider.maxZoom
+    }).addTo(mapInstanceRef.current);
+
+    tileLayerRef.current = newTileLayer;
+  };
+
+  // Perform Free Nominatim Geocoding Search
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    try {
+      setSearching(true);
+      setShowSearchResults(true);
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`
+      );
+      const data = await resp.json();
+      setSearchResults(data);
+    } catch (err) {
+      console.error('Location search failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSelectSearchResult = (result) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    
+    if (!mapInstanceRef.current) return;
+
+    mapInstanceRef.current.setView([lat, lon], 13, { animate: true });
+
+    if (searchMarkerRef.current) {
+      mapInstanceRef.current.removeLayer(searchMarkerRef.current);
+    }
+
+    const searchMarker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        html: `<div style="background:#8b5cf6; width:16px; height:16px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 12px #8b5cf6;"></div>`,
+        className: 'search-pin',
+        iconSize: [16, 16]
+      })
+    }).addTo(mapInstanceRef.current);
+
+    searchMarkerRef.current = searchMarker;
+
+    setSelectedEntity({
+      type: 'SEARCH_LOCATION',
+      title: result.display_name.split(',')[0],
+      address: result.display_name,
+      coords: `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+    });
+
+    setShowSearchResults(false);
+  };
 
   // Render Map Markers whenever layersData or filters change
   useEffect(() => {
@@ -95,7 +211,6 @@ export default function GISMap() {
         const latLng = [cluster.center_lat, cluster.center_lng];
         bounds.push(latLng);
 
-        // Outer glow
         const circle = L.circle(latLng, {
           color: '#ef4444',
           fillColor: '#ef4444',
@@ -206,7 +321,7 @@ export default function GISMap() {
       });
     }
 
-    if (bounds.length > 0) {
+    if (bounds.length > 0 && !searchMarkerRef.current) {
       mapInstanceRef.current.fitBounds(bounds, { padding: [40, 40] });
     }
   }, [layersData, showClusters, showVillages, showFacilities, filterDisease]);
@@ -222,11 +337,13 @@ export default function GISMap() {
         top: '20px',
         left: '20px',
         zIndex: 10,
-        width: '320px',
-        background: 'rgba(15, 23, 42, 0.85)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '12px',
+        width: '340px',
+        maxHeight: 'calc(100vh - 160px)',
+        overflowY: 'auto',
+        background: 'rgba(15, 23, 42, 0.88)',
+        backdropFilter: 'blur(14px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '14px',
         padding: '18px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
       }}>
@@ -244,8 +361,93 @@ export default function GISMap() {
           </div>
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>GIS Health & Outbreak Map</h2>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Spatial Surveillance Layers</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Free OpenStreetMap & CARTO GIS Engine</span>
           </div>
+        </div>
+
+        {/* Location Search Bar (Nominatim Free API) */}
+        <div style={{ position: 'relative', marginBottom: '14px' }}>
+          <form onSubmit={handleSearch} style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Search village, city, district..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ fontSize: '12px', padding: '8px 10px 8px 30px', width: '100%' }}
+              />
+              <MagnifyingGlass size={14} color="#94a3b8" style={{ position: 'absolute', left: '9px', top: '10px' }} />
+            </div>
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={searching}
+              style={{ fontSize: '12px', padding: '8px 12px' }}
+            >
+              {searching ? '...' : 'Search'}
+            </button>
+          </form>
+
+          {/* Search Results Dropdown */}
+          {showSearchResults && searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              marginTop: '4px',
+              background: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '8px',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              zIndex: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+            }}>
+              {searchResults.map((res, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => handleSelectSearchResult(res)}
+                  style={{
+                    padding: '8px 12px',
+                    fontSize: '11px',
+                    color: '#e2e8f0',
+                    cursor: 'pointer',
+                    borderBottom: idx === searchResults.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#1e293b'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <MapPin size={12} color="#06b6d4" style={{ display: 'inline', marginRight: '6px' }} />
+                  {res.display_name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Map Tile Style Switcher */}
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
+            <Layers size={13} color="#06b6d4" />
+            Base Map Provider
+          </label>
+          <select 
+            className="input-field"
+            value={activeTileStyle}
+            onChange={(e) => handleTileStyleChange(e.target.value)}
+            style={{ fontSize: '12px', padding: '8px 10px' }}
+          >
+            {Object.entries(TILE_PROVIDERS).map(([key, provider]) => (
+              <option key={key} value={key}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Filter Disease */}
@@ -351,8 +553,8 @@ export default function GISMap() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
             <div>
               <span className="badge" style={{ 
-                backgroundColor: selectedEntity.type === 'CLUSTER' ? 'rgba(239, 68, 68, 0.2)' : selectedEntity.type === 'FACILITY' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                color: selectedEntity.type === 'CLUSTER' ? '#f87171' : selectedEntity.type === 'FACILITY' ? '#38bdf8' : '#34d399',
+                backgroundColor: selectedEntity.type === 'CLUSTER' ? 'rgba(239, 68, 68, 0.2)' : selectedEntity.type === 'FACILITY' ? 'rgba(6, 182, 212, 0.2)' : selectedEntity.type === 'SEARCH_LOCATION' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                color: selectedEntity.type === 'CLUSTER' ? '#f87171' : selectedEntity.type === 'FACILITY' ? '#38bdf8' : selectedEntity.type === 'SEARCH_LOCATION' ? '#a78bfa' : '#34d399',
                 marginBottom: '6px',
                 display: 'inline-block'
               }}>
@@ -371,6 +573,15 @@ export default function GISMap() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+            {selectedEntity.type === 'SEARCH_LOCATION' && (
+              <>
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px', marginBottom: '2px' }}>Full Location Address</span>
+                  <span style={{ color: '#e2e8f0', fontSize: '12px' }}>{selectedEntity.address}</span>
+                </div>
+              </>
+            )}
+
             {selectedEntity.type === 'VILLAGE' && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
@@ -443,3 +654,4 @@ export default function GISMap() {
     </div>
   );
 }
+
