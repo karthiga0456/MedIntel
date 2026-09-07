@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd react-dashboard && npm run build",
+  "buildCommand": "cd react-dashboard && npm install && npm run build",
   "outputDirectory": "react-dashboard/dist",
   "rewrites": [
     {
