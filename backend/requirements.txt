@@ -11,6 +11,8 @@ python-dotenv==1.0.1
 # --- Module 1: AI Medical Knowledge Assistant ---
 langchain==0.3.3
 langchain-community==0.3.2
+sentence-transformers==3.1.1
+
 
 
 # --- Module 2: Healthcare RAG System ---
