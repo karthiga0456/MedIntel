@@ -114,7 +114,7 @@ export default function KnowledgeBase() {
               <span>Querying FAISS Vector Database...</span>
             </div>
           ) : result ? (
-            <pre>{result}</pre>
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', margin: 0 }}>{result}</pre>
           ) : (
             <div className="empty-state">
               <MagnifyingGlass />

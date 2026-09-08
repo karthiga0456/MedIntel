@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   ArrowLeft,
   SignOut,
-  UserCheck
+  UserCheck,
+  MapPin
 } from '@phosphor-icons/react';
 import { offlineSync } from '../services/offlineSync';
 import { api } from '../services/api';
@@ -112,10 +113,6 @@ export default function DashboardLayout() {
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '8px', marginTop: '8px', paddingLeft: '20px' }}>
             MY WORKSPACE & CLINICAL
           </div>
-          <NavLink to="/dashboard/patients" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Users weight="regular" />
-            <span>Patients Registry</span>
-          </NavLink>
           <NavLink to="/dashboard/assistant" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Robot weight="regular" />
             <span>AI Assistant</span>
@@ -124,17 +121,23 @@ export default function DashboardLayout() {
             <Books weight="regular" />
             <span>Medical Records RAG</span>
           </NavLink>
-          <NavLink to="/dashboard/labs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <Flask weight="regular" />
-            <span>Diagnostic Labs</span>
-          </NavLink>
           <NavLink to="/dashboard/medicines" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Pill weight="regular" />
             <span>Formulary & Rx</span>
           </NavLink>
-          <NavLink to="/dashboard/worker" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <UsersThree weight="regular" />
-            <span>Health Worker Portal</span>
+          {isAdmin && (
+            <NavLink to="/dashboard/emergency" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+              <Siren weight="regular" />
+              <span>Emergency Triage</span>
+            </NavLink>
+          )}
+          <NavLink to="/dashboard/insurance" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <Shield weight="regular" />
+            <span>Insurance Agent</span>
+          </NavLink>
+          <NavLink to="/dashboard/nearby-hospitals" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <MapPin weight="regular" />
+            <span>Nearby Hospitals</span>
           </NavLink>
           <NavLink to="/dashboard/notifications" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -163,39 +166,15 @@ export default function DashboardLayout() {
           {isAdmin && (
             <>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '8px', marginTop: '22px', paddingLeft: '20px' }}>
-                PUBLIC HEALTH & SURVEILLANCE
-              </div>
-              <NavLink to="/dashboard/surveillance" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <Pulse weight="regular" />
-                <span>Disease Surveillance</span>
-              </NavLink>
-              <NavLink to="/dashboard/outbreak" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <ChartLineUp weight="regular" />
-                <span>Outbreak Engine</span>
-              </NavLink>
-              <NavLink to="/dashboard/map" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <Compass weight="regular" />
-                <span>GIS Health Map</span>
-              </NavLink>
-              <NavLink to="/dashboard/emergency" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <Siren weight="regular" />
-                <span>Emergency Triage</span>
-              </NavLink>
-              <NavLink to="/dashboard/insurance" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <Shield weight="regular" />
-                <span>Insurance Agent</span>
-              </NavLink>
-
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '8px', marginTop: '22px', paddingLeft: '20px' }}>
                 ADMINISTRATION & AUDIT
               </div>
               <NavLink to="/dashboard/analytics" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
                 <ChartPieSlice weight="regular" />
                 <span>Reports & Analytics</span>
               </NavLink>
-              <NavLink to="/dashboard/admin/audit" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-                <ShieldCheck weight="regular" />
-                <span>Security Audit Trail</span>
+              <NavLink to="/dashboard/patients" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+                <Users weight="regular" />
+                <span>Patient Registry</span>
               </NavLink>
               <NavLink to="/dashboard/admin" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
                 <Shield weight="regular" />

@@ -2,7 +2,7 @@ import os
 import uuid
 import io
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime
 from PIL import Image
 import pytesseract
@@ -10,10 +10,12 @@ import pypdf
 from sqlalchemy.orm import Session
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from app.core.logging import get_logger
 from app.config import settings
+from app.core.ai_provider import ai_provider_service
 from app.db.models import MedicalDocument
 from app.modules.healthcare_rag.schemas import (
     DocumentQueryRequest,
@@ -37,33 +39,8 @@ class HealthcareRAGService:
     def __init__(self):
         self.vector_db_path = settings.vector_db_path
         os.makedirs(self.vector_db_path, exist_ok=True)
-        self._llm = None
-        self._embeddings = None
-
-    def _get_llm(self):
-        if self._llm is not None:
-            return self._llm
-
-        if settings.groq_api_key and settings.groq_api_key != "your_groq_api_key_here":
-            try:
-                from app.modules.knowledge_assistant.service import GroqLLM
-                self._llm = GroqLLM(api_key=settings.groq_api_key, model=settings.groq_model or "qwen/qwen3.8-27b")
-                return self._llm
-            except Exception as e:
-                logger.warning(f"Groq RAG LLM init error: {e}")
-
-        if settings.google_api_key and settings.google_api_key != "your_google_api_key_here":
-            try:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                self._llm = ChatGoogleGenerativeAI(
-                    model="gemini-2.5-flash",
-                    google_api_key=settings.google_api_key,
-                    temperature=0.1,
-                )
-                return self._llm
-            except Exception as e:
-                logger.warning(f"Google Gemini init error: {e}")
-        return None
+        self.index_path = os.path.join(self.vector_db_path, "faiss_index")
+        self.embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model)
 
     def _extract_text(self, filename: str, content: bytes) -> str:
         extracted_text = ""
@@ -129,12 +106,22 @@ class HealthcareRAGService:
         db.add(med_doc)
         db.commit()
 
-        # Save chunk text files organized by patient/doc for fast keyword & vector indexing
+        # Save chunk text files organized by patient/doc for fast keyword indexing
         patient_folder = os.path.join(self.vector_db_path, patient_id or "general")
         os.makedirs(patient_folder, exist_ok=True)
         chunk_file = os.path.join(patient_folder, f"{doc_id}.txt")
         with open(chunk_file, "w", encoding="utf-8") as f:
             f.write(extracted_text)
+
+        # Add to FAISS index
+        if chunks:
+            metadatas = [{"patient_id": patient_id, "doc_id": doc_id, "title": filename, "doc_type": doc_type}] * len(chunks)
+            if os.path.exists(self.index_path):
+                vectorstore = FAISS.load_local(self.index_path, self.embeddings, allow_dangerous_deserialization=True)
+                vectorstore.add_texts(chunks, metadatas=metadatas)
+            else:
+                vectorstore = FAISS.from_texts(chunks, self.embeddings, metadatas=metadatas)
+            vectorstore.save_local(self.index_path)
 
         preview = extracted_text[:200] + ("..." if len(extracted_text) > 200 else "")
         return UploadResponse(
@@ -168,58 +155,54 @@ class HealthcareRAGService:
                 patient_id=request.patient_id,
             )
 
-        # 2. Extract matching chunks across authorized docs
+        # 2. Extract matching chunks across authorized docs using FAISS
         relevant_chunks: List[str] = []
         sources: List[str] = []
-        keywords = [k for k in re.findall(r"\w+", query_text) if len(k) > 2]
-
-        for doc in docs:
-            text = doc.extracted_text or ""
-            # Split into paragraphs/sentences
-            paragraphs = [p.strip() for p in text.split(". ") if p.strip()]
-            scored_paragraphs = []
-            for para in paragraphs:
-                para_lower = para.lower()
-                score = sum(1 for kw in keywords if kw in para_lower)
-                if score > 0:
-                    scored_paragraphs.append((score, para))
-
-            scored_paragraphs.sort(key=lambda x: x[0], reverse=True)
-            top_for_doc = [p for _, p in scored_paragraphs[:3]]
-            if top_for_doc:
-                relevant_chunks.extend(top_for_doc)
-                sources.append(f"{doc.title} ({doc.doc_type})")
-
+        
+        if os.path.exists(self.index_path):
+            vectorstore = FAISS.load_local(self.index_path, self.embeddings, allow_dangerous_deserialization=True)
+            filter_dict = {}
+            if request.patient_id:
+                filter_dict["patient_id"] = request.patient_id
+            if request.document_id:
+                filter_dict["doc_id"] = request.document_id
+                
+            search_kwargs = {"k": 4}
+            if filter_dict:
+                search_kwargs["filter"] = filter_dict
+                
+            retriever = vectorstore.as_retriever(search_kwargs=search_kwargs)
+            try:
+                retrieved_docs = retriever.invoke(query_text)
+                for doc in retrieved_docs:
+                    relevant_chunks.append(doc.page_content)
+                    sources.append(f"{doc.metadata.get('title', 'Unknown')} ({doc.metadata.get('doc_type', 'report')})")
+            except Exception as e:
+                logger.error(f"FAISS retrieve error: {e}")
+        
         if not relevant_chunks:
-            # Fallback: take beginning of the most recent document
             most_recent = docs[-1]
             relevant_chunks = [most_recent.extracted_text[:400]]
             sources.append(most_recent.title)
 
         context = "\n\n".join(relevant_chunks[:4])
 
-        # 3. If Gemini LLM is configured, generate synthesized response
-        llm = self._get_llm()
-        if llm:
-            try:
-                from langchain_core.prompts import ChatPromptTemplate
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", f"{SYSTEM_PROMPT}\n\nContext:\n{context}"),
-                    ("human", "{question}"),
-                ])
-                chain = prompt | llm
-                response = chain.invoke({"question": request.query})
-                answer = response.content
-            except Exception as e:
-                logger.error(f"LLM generation failed: {e}")
-                answer = (
-                    f"**Extracted Findings from Document:**\n\n{context}\n\n"
-                    "*(AI synthesis temporarily unavailable; displaying raw extracted text directly.)*"
-                )
-        else:
+        # 3. Generate AI response using provider service (Groq → Ollama fallback)
+        # IMPORTANT: The same context is passed to whichever provider responds.
+        system_with_context = f"{SYSTEM_PROMPT}\n\nContext from patient records:\n{context}"
+        messages = ai_provider_service.build_messages(
+            system_prompt=system_with_context,
+            user_message=request.query,
+        )
+
+        answer = ai_provider_service.generate_response(messages=messages, temperature=0.1, max_tokens=800)
+
+        # If the response looks like a friendly error, annotate it
+        if "⚠️" in answer or "temporarily unavailable" in answer.lower():
             answer = (
                 f"📄 **Extracted Clinical Findings:**\n\n{context}\n\n"
-                "ℹ️ *Note: Gemini LLM is not configured in .env. Showing direct text extracted from verified patient records.*"
+                "ℹ️ *Note: AI synthesis is temporarily unavailable. "
+                "Showing direct text extracted from verified patient records.*"
             )
 
         return DocumentQueryResponse(
@@ -227,7 +210,7 @@ class HealthcareRAGService:
             sources=list(set(sources)),
             relevant_passages=relevant_chunks[:3],
             patient_id=request.patient_id,
-            confidence=0.92 if llm else 0.80,
+            confidence=0.92,
         )
 
 

@@ -1,68 +1,51 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   PaperPlaneRight, Robot, User, Microphone, Paperclip,
-  WarningCircle, Globe, Trash, ShieldCheck, FirstAid,
+  WarningCircle, Globe, Trash, ShieldCheck, FirstAid, Lightning,
 } from '@phosphor-icons/react';
 import { api } from '../services/api';
 
-// ── Generate or restore a stable session user ID ─────────────────────────────
+// ── Session user ID ───────────────────────────────────────────────────────────
 function getOrCreateUserId() {
   const key = 'medintel_user_id';
   let id = localStorage.getItem(key);
-  if (!id) {
-    id = 'user-' + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem(key, id);
-  }
+  if (!id) { id = 'user-' + Math.random().toString(36).slice(2, 10); localStorage.setItem(key, id); }
   return id;
 }
 
+// ── Simple markdown renderer ──────────────────────────────────────────────────
+function renderMarkdown(text) {
+  if (!text) return '';
+  return text
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px;">$1</code>')
+    .replace(/^### (.*?)$/gm, '<h4 style="color:var(--accent-cyan);font-size:15px;font-weight:700;margin:14px 0 8px 0;">$1</h4>')
+    .replace(/^## (.*?)$/gm, '<h3 style="color:#e2e8f0;font-size:16px;font-weight:700;margin:14px 0 8px 0;">$1</h3>')
+    .replace(/^- (.*?)$/gm, '<div style="display:flex;gap:8px;margin:3px 0;"><span style="color:var(--accent-cyan);margin-top:1px;flex-shrink:0;">•</span><span>$1</span></div>')
+    .replace(/^\d+\. (.*?)$/gm, '<div style="display:flex;gap:8px;margin:3px 0;"><span style="color:var(--accent-yellow);flex-shrink:0;font-weight:600;">→</span><span>$1</span></div>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
 const WELCOME_MSG = {
-  text: "Hello! I'm MedIntel AI — your public health assistant. I can help you with disease awareness, symptoms, prevention, vaccination schedules, and Indian government health schemes.\n\nHow can I help you today?",
+  text: "Hello! I'm **MedIntel AI** — your public health assistant.\n\nI can help you with:\n- Disease awareness, symptoms & prevention\n- Vaccination schedules and immunisation\n- Indian government health schemes (PM-JAY, ASHA, NHM)\n- Maternal & child health, nutrition\n\nHow can I help you today?",
   sender: 'bot',
 };
 
 const EMERGENCY_KEYWORDS = [
-  'chest pain', 'heart attack', 'stroke', 'can\'t breathe', 'cannot breathe',
+  'chest pain', 'heart attack', 'stroke', "can't breathe", 'cannot breathe',
   'difficulty breathing', 'unconscious', 'unresponsive', 'severe bleeding',
   'allergic reaction', 'anaphylaxis', 'seizure', 'convulsion',
 ];
 
-function getFallbackHealthAnswer(query) {
-  const q = query.toLowerCase();
-  
-  if (q.includes('dengue')) {
-    return {
-      text: "### Dengue Fever Awareness & Symptoms\n\n**Common Symptoms:**\n- High fever (104°F/40°C)\n- Severe headache and pain behind the eyes\n- Severe muscle and joint pains ('breakbone fever')\n- Nausea, vomiting, and skin rash\n\n**Prevention & Management:**\n- Prevent mosquito bites using repellents and nets\n- Prevent stagnant water accumulation around living areas\n- Stay well hydrated with water, ORS, and fluids\n- Rest adequately and avoid aspirin/ibuprofen without medical supervision",
-      scheme: "National Vector Borne Disease Control Programme (NVBDCP) – Free diagnosis & treatment at government health facilities"
-    };
-  }
-
-  if (q.includes('malaria')) {
-    return {
-      text: "### Malaria Overview & Prevention\n\n**Key Symptoms:**\n- Chills with moderate to severe shaking\n- High fever and sweating\n- Headache, nausea, and body aches\n\n**Prevention:**\n- Use insecticide-treated bed nets\n- Clear stagnant water in coolers, containers, and drains\n- Seek immediate blood testing at the nearest PHC upon fever onset",
-      scheme: "National Vector Borne Disease Control Programme (NVBDCP) – Free blood testing & anti-malarial treatment"
-    };
-  }
-
-  if (q.includes('ayushman') || q.includes('insurance') || q.includes('scheme') || q.includes('pmjay')) {
-    return {
-      text: "### Ayushman Bharat PM-JAY Scheme Guidance\n\n**Overview:**\nAyushman Bharat Pradhan Mantri Jan Arogya Yojana (PM-JAY) provides free health coverage of up to ₹5 Lakh per family per year for secondary and tertiary care hospitalization.\n\n**Benefits:**\n- Cashless treatment at over 25,000 empanelled public and private hospitals\n- Covers pre-hospitalization, medicines, diagnostics, and post-care\n- No restriction on family size or age",
-      scheme: "Ayushman Bharat PM-JAY – Cashless free hospitalization up to ₹5 lakh/year"
-    };
-  }
-
-  if (q.includes('fever') || q.includes('temperature') || q.includes('flu') || q.includes('cough')) {
-    return {
-      text: "### Fever & General Symptom Management\n\n**General Care Guidelines:**\n- Stay hydrated with water, coconut water, or ORS solutions\n- Rest sufficiently to allow your immune system to recover\n- Monitor body temperature regularly\n- Use cool sponge wipes if fever exceeds 101°F\n\n**When to Visit a Doctor Immediately:**\n- Fever persisting longer than 3 days\n- Difficulty breathing or chest pain\n- Severe headache, stiff neck, or extreme lethargy",
-      scheme: "National Health Mission (NHM) – Visit your nearest Primary Health Centre (PHC) for free consultations and essential medicines"
-    };
-  }
-
-  return {
-    text: `### Health Information & Guidance\n\nRegarding your query about **"${query}"**:\n\n- **General Awareness:** Maintain good hydration, balanced nutrition, and hygiene practices.\n- **Primary Care:** For personalized medical evaluation and diagnosis, please visit your nearest Primary Health Centre (PHC), Community Health Centre (CHC), or district hospital.\n- **Government Schemes:** Ayushman Bharat PM-JAY and National Health Mission (NHM) provide accessible healthcare support across India.`,
-    scheme: "National Health Mission (NHM) – Free primary healthcare services at local PHCs"
-  };
-}
+const QUICK_QUESTIONS = [
+  'What are symptoms of dengue fever?',
+  'Tell me about Ayushman Bharat PM-JAY',
+  'Vaccination schedule for children',
+  'How to prevent malaria?',
+];
 
 export default function Assistant() {
   const [userId]    = useState(getOrCreateUserId);
@@ -77,13 +60,12 @@ export default function Assistant() {
   const inputRef     = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // ── Send message ────────────────────────────────────────────────────────────
-  const handleSend = async () => {
+  // ── Send message ──────────────────────────────────────────────────────────
+  const handleSend = useCallback(async () => {
     if (!input.trim() || isTyping) return;
 
     const currentInput = input.trim();
@@ -91,7 +73,6 @@ export default function Assistant() {
     setInput('');
     setIsTyping(true);
 
-    // Emergency intent detection (frontend-level, before API call)
     const lower = currentInput.toLowerCase();
     const isEmergency = EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
 
@@ -99,14 +80,13 @@ export default function Assistant() {
       setIsTyping(false);
       setEmergencyAlert(true);
       setMessages(prev => [...prev, {
-        text: '🚨 EMERGENCY DETECTED\n\nPlease call **112** (India Emergency) or go to your nearest hospital immediately.\n\nDo NOT wait — ask someone nearby for help right now.',
+        text: '🚨 **MEDICAL EMERGENCY DETECTED**\n\nPlease call **112** (India Emergency) or go to your nearest hospital immediately.\n\nDo NOT wait — ask someone nearby for help right now.',
         sender: 'bot',
         isEmergency: true,
       }]);
       return;
     }
 
-    // Normal API call with intelligent fallback
     try {
       const data = await api.assistant.chat(currentInput, language, userId);
       setMessages(prev => [...prev, {
@@ -114,102 +94,77 @@ export default function Assistant() {
         sender:  'bot',
         scheme:  data.matched_scheme || null,
         disclaimer: data.disclaimer || null,
+        provider: data.provider || null,
       }]);
-    } catch (_) {
-      const fallback = getFallbackHealthAnswer(currentInput);
+    } catch (err) {
       setMessages(prev => [...prev, {
-        text: fallback.text,
+        text: '⚠️ Could not reach the AI service. Please check your internet connection and try again.\n\nFor urgent health queries, visit your nearest Primary Health Centre (PHC) or call **112**.',
         sender: 'bot',
-        scheme: fallback.scheme,
-        disclaimer: "⚕️ Health Disclaimer: This information is for general awareness only — please consult a qualified doctor or visit your nearest government health centre (PHC/CHC) for personal medical guidance.",
+        isError: true,
       }]);
     } finally {
       setIsTyping(false);
       inputRef.current?.focus();
     }
-  };
+  }, [input, isTyping, language, userId]);
 
-  // ── Clear chat history ──────────────────────────────────────────────────────
+  // ── Clear chat ────────────────────────────────────────────────────────────
   const handleClearHistory = async () => {
-    try {
-      await api.assistant.clearHistory(userId);
-    } catch { /* ignore — history is also cleared locally */ }
+    try { await api.assistant.clearHistory(userId); } catch { /* ignore */ }
     setMessages([WELCOME_MSG]);
     setEmergencyAlert(false);
   };
 
-  // ── Voice recording (Web Speech API) ───────────────────────────────────────
+  // ── Voice recording ───────────────────────────────────────────────────────
   const toggleRecording = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert('Voice input is not supported in this browser. Please use Chrome or Edge.');
-      return;
-    }
-
-    if (isRecording) {
-      recognitionRef.current?.stop();
-      setIsRecording(false);
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.lang = language === 'en' ? 'en-IN' : `${language}-IN`;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { alert('Voice input not supported. Use Chrome or Edge.'); return; }
+    if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); return; }
+    const rec = new SpeechRecognition();
+    recognitionRef.current = rec;
+    rec.lang = language === 'en' ? 'en-IN' : `${language}-IN`;
+    rec.interimResults = false;
+    rec.onstart = () => setIsRecording(true);
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
       setInput(prev => prev ? `${prev} ${transcript}` : transcript);
     };
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onend   = () => setIsRecording(false);
-    recognition.start();
+    rec.onerror = () => setIsRecording(false);
+    rec.onend   = () => setIsRecording(false);
+    rec.start();
   };
 
-  // ── File upload (OCR placeholder — wired to RAG in Module 3) ───────────────
   const handleFileUpload = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const fileName = e.target.files[0].name;
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        setInput(`Please explain the medical findings from: ${fileName}`);
-        inputRef.current?.focus();
-      }, 1200);
+    if (e.target.files?.length) {
+      setInput(`Please explain the medical findings from: ${e.target.files[0].name}`);
+      inputRef.current?.focus();
     }
   };
 
-  // ── Keyboard handler ────────────────────────────────────────────────────────
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="module-view">
+    <div className="module-view" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <header className="module-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+      <header className="module-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>
-          <h2>AI Medical Knowledge Assistant</h2>
-          <p className="subtitle">Powered by Google Gemini · Multilingual · Health Scheme Aware</p>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Lightning size={24} color="var(--accent-yellow)" weight="fill" />
+            AI Medical Assistant
+          </h2>
+          <p className="subtitle">Powered by Groq → Ollama fallback · Multilingual · Health Scheme Aware</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Language selector */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="control-pill">
             <Globe weight="bold" size={16} color="var(--text-secondary)" />
             <select
-              id="language-selector"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              style={{ background: 'transparent', border: 'none', color: 'white', outline: 'none', cursor: 'pointer', fontSize: '14px' }}
+              style={{ background: 'transparent', border: 'none', color: 'white', outline: 'none', cursor: 'pointer', fontSize: '13px' }}
             >
               <option value="en">English</option>
               <option value="hi">हिंदी (Hindi)</option>
@@ -220,74 +175,86 @@ export default function Assistant() {
               <option value="ml">മലയാളം (Malayalam)</option>
             </select>
           </div>
-
-          {/* Clear history */}
-          <button
-            id="clear-chat-btn"
-            onClick={handleClearHistory}
-            className="btn-secondary"
-            title="Clear conversation history"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-          >
-            <Trash size={16} />
-            New Chat
+          <button id="clear-chat-btn" onClick={handleClearHistory} className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+            <Trash size={16} /> New Chat
           </button>
         </div>
       </header>
 
       {/* Emergency Banner */}
       {emergencyAlert && (
-        <div className="emergency-banner" role="alert">
-          <div className="emergency-icon">
-            <WarningCircle size={28} weight="bold" />
-          </div>
+        <div className="emergency-banner" role="alert" style={{ marginBottom: '12px' }}>
+          <div className="emergency-icon"><WarningCircle size={28} weight="bold" /></div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: '4px' }}>
-              🚨 MEDICAL EMERGENCY DETECTED
-            </div>
+            <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: '4px' }}>🚨 MEDICAL EMERGENCY DETECTED</div>
             <div style={{ fontSize: '14px', color: 'rgba(255,200,200,0.9)', lineHeight: 1.5 }}>
-              Please call <strong>112</strong> (India Emergency) immediately or go to the nearest hospital.
-              Do not wait — get help right now.
+              Call <strong>112</strong> immediately or go to the nearest hospital. Do not wait.
             </div>
           </div>
-          <button
-            className="btn-secondary"
-            onClick={() => setEmergencyAlert(false)}
-            style={{ marginLeft: '12px', whiteSpace: 'nowrap', borderColor: 'rgba(239,68,68,0.5)', color: '#fca5a5' }}
-          >
+          <button className="btn-secondary" onClick={() => setEmergencyAlert(false)}
+            style={{ marginLeft: '12px', borderColor: 'rgba(239,68,68,0.5)', color: '#fca5a5' }}>
             Dismiss
           </button>
         </div>
       )}
 
       {/* Chat Window */}
-      <div className="chat-container glass-panel" style={{ flex: 1 }}>
-        <div className="chat-window" id="chat-window">
+      <div className="chat-container glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div className="chat-window" id="chat-window" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+
+          {/* Quick question chips — shown only on fresh chat */}
+          {messages.length === 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px', justifyContent: 'center' }}>
+              {QUICK_QUESTIONS.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 0); }}
+                  style={{
+                    padding: '7px 14px', borderRadius: '20px', fontSize: '12px',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+                    color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-cyan)'; e.currentTarget.style.color = 'var(--accent-cyan)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
           {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`chat-message ${msg.sender}`}
-              style={msg.isEmergency ? { borderColor: 'var(--danger-red)', background: 'rgba(239,68,68,0.08)' } : {}}
-            >
-              {/* Avatar */}
+            <div key={i} className={`chat-message ${msg.sender}`}
+              style={{ marginBottom: '16px', ...(msg.isEmergency ? { borderColor: 'var(--danger-red)', background: 'rgba(239,68,68,0.08)' } : {}) }}>
               <div className={`message-avatar ${msg.isEmergency ? 'avatar-emergency' : ''}`}>
-                {msg.sender === 'bot'
-                  ? <Robot weight="fill" size={18} />
-                  : <User weight="bold" size={18} />}
+                {msg.sender === 'bot' ? <Robot weight="fill" size={18} /> : <User weight="bold" size={18} />}
               </div>
 
-              {/* Bubble */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%', minWidth: 0 }}>
+                {/* Message bubble */}
                 <div
                   className="message-content"
                   style={{
-                    whiteSpace: 'pre-wrap',
+                    lineHeight: '1.7',
                     ...(msg.isEmergency ? { color: '#fca5a5', borderColor: 'var(--danger-red)' } : {}),
+                    ...(msg.isError ? { color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' } : {}),
                     ...(msg.sender === 'user' ? { background: 'rgba(228,255,0,0.08)', borderColor: 'rgba(228,255,0,0.2)' } : {}),
                   }}
                 >
-                  {msg.text}
+                  {msg.sender === 'bot'
+                    ? <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                    : <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                  }
                 </div>
+
+                {/* Provider badge */}
+                {msg.provider && (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Lightning size={11} weight="fill" color="var(--accent-yellow)" />
+                    via {msg.provider === 'groq' ? 'Groq Cloud' : msg.provider === 'ollama' ? 'Ollama (local)' : 'Offline Engine'}
+                  </div>
+                )}
 
                 {/* Government scheme badge */}
                 {msg.scheme && (
@@ -310,37 +277,24 @@ export default function Assistant() {
 
           {/* Typing indicator */}
           {isTyping && (
-            <div className="chat-message bot">
-              <div className="message-avatar">
-                <Robot weight="fill" size={18} />
-              </div>
-              <div className="message-content" style={{ padding: '12px 18px' }}>
+            <div className="chat-message bot" style={{ marginBottom: '16px' }}>
+              <div className="message-avatar"><Robot weight="fill" size={18} /></div>
+              <div className="message-content" style={{ padding: '14px 18px' }}>
                 <div className="typing-indicator">
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
+                  <div className="typing-dot" /><div className="typing-dot" /><div className="typing-dot" />
                 </div>
               </div>
             </div>
           )}
-
-          {/* Auto-scroll anchor */}
           <div ref={chatEndRef} />
         </div>
 
         {/* Input bar */}
         <div className="chat-input-wrapper">
           <div className="chat-input-area">
-            {/* File upload */}
             <label style={{ position: 'absolute', left: '14px', cursor: 'pointer', zIndex: 10, margin: 0, display: 'flex', alignItems: 'center' }}>
               <Paperclip weight="bold" size={18} color="var(--text-muted)" />
-              <input
-                id="file-upload-input"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                style={{ display: 'none' }}
-                onChange={handleFileUpload}
-              />
+              <input id="file-upload-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={handleFileUpload} />
             </label>
 
             <input
@@ -355,37 +309,25 @@ export default function Assistant() {
               disabled={isTyping}
             />
 
-            {/* Voice */}
-            <button
-              id="voice-btn"
-              onClick={toggleRecording}
+            <button id="voice-btn" onClick={toggleRecording}
               style={{
-                position: 'absolute', right: '52px',
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: isRecording ? 'var(--danger-red)' : 'var(--text-muted)',
-                display: 'flex', alignItems: 'center',
-                transition: 'color 0.2s',
+                position: 'absolute', right: '52px', background: 'transparent', border: 'none', cursor: 'pointer',
+                color: isRecording ? 'var(--danger-red)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', transition: 'color 0.2s',
               }}
-              title={isRecording ? 'Stop recording' : 'Start voice input'}
-            >
+              title={isRecording ? 'Stop recording' : 'Start voice input'}>
               <Microphone weight={isRecording ? 'fill' : 'bold'} size={20} />
             </button>
 
-            {/* Send */}
-            <button
-              id="send-btn"
-              className="btn-primary"
-              onClick={handleSend}
+            <button id="send-btn" className="btn-primary" onClick={handleSend}
               disabled={isTyping || !input.trim()}
-              style={{ position: 'absolute', right: '8px', padding: '10px', borderRadius: '50%', width: '38px', height: '38px' }}
-              title="Send message"
-            >
+              style={{ position: 'absolute', right: '8px', padding: '10px', borderRadius: '50%', width: '38px', height: '38px' }}>
               <PaperPlaneRight weight="bold" size={16} />
             </button>
           </div>
 
-          <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            MedIntel AI · For awareness only · Not a substitute for medical advice
+          <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <Lightning size={11} weight="fill" color="var(--accent-yellow)" />
+            MedIntel AI · Groq → Ollama fallback · For awareness only · Not a substitute for medical advice
           </div>
         </div>
       </div>

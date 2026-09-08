@@ -1,6 +1,5 @@
 import io
 import re
-import json
 from typing import Dict, Any, List, Optional
 from fastapi import UploadFile
 import pypdf
@@ -9,6 +8,7 @@ import pytesseract
 
 from app.config import settings
 from app.core.logging import get_logger
+from app.core.ai_provider import ai_provider_service
 from app.modules.insurance_parser.schemas import InsuranceClaimResponse
 
 logger = get_logger(__name__)
@@ -18,29 +18,13 @@ DISCLAIMER_TEXT = (
     "and bill line-items. It does not guarantee claim approval or specific payment amounts from any insurance company."
 )
 
-EXCLUDED_CATEGORIES = ["sanitizer", "mask", "gloves", "admission fee", "registration", "attendant", "toiletries", "admin"]
+EXCLUDED_CATEGORIES = [
+    "sanitizer", "mask", "gloves", "admission fee", "registration",
+    "attendant", "toiletries", "admin", "service charge", "bed charges"
+]
 
 
 class InsuranceParserService:
-    def __init__(self):
-        self._llm = None
-
-    def _get_llm(self):
-        if self._llm is not None:
-            return self._llm
-        if settings.google_api_key:
-            try:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                self._llm = ChatGoogleGenerativeAI(
-                    model="gemini-2.5-flash",
-                    google_api_key=settings.google_api_key,
-                    temperature=0.1,
-                )
-                return self._llm
-            except Exception as e:
-                logger.warning(f"Google Gemini init for Insurance failed: {e}")
-        return None
-
     def extract_text_from_file(self, file: UploadFile, content: bytes) -> str:
         filename = (file.filename or "").lower()
         text = ""
@@ -60,19 +44,22 @@ class InsuranceParserService:
         return text.strip()
 
     def _rule_based_parse(self, bill_text: str, policy_text: str) -> Dict[str, Any]:
-        """Deterministic rule-based line item parsing when AI is not configured or for transparent auditing."""
+        """
+        Deterministic rule-based line item parsing.
+        ALL financial calculations are performed in Python — NOT by AI.
+        AI is only used to generate explanatory notes.
+        """
         lines = bill_text.split("\n")
         line_items = []
         total_billed = 0.0
 
         for line in lines:
-            # Look for line with description and price: e.g. "Room Rent: 4500" or "Medications ... 2300"
             amounts = re.findall(r"(?:₹|\$|INR|Rs\.?)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{2})?)", line)
             if amounts:
                 raw_amt = amounts[-1].replace(",", "")
                 try:
                     val = float(raw_amt)
-                    if 10.0 <= val <= 500000.0:  # Reasonable medical charge filter
+                    if 10.0 <= val <= 500000.0:
                         desc = re.sub(r"[0-9,.]+", "", line).strip(" :-|")
                         if not desc:
                             desc = "Medical Charge / Procedure"
@@ -80,7 +67,7 @@ class InsuranceParserService:
                         desc_lower = desc.lower()
                         is_excluded = any(ex in desc_lower for ex in EXCLUDED_CATEGORIES)
                         line_items.append({
-                            "description": desc[:60],
+                            "description": desc[:80],
                             "amount": val,
                             "is_covered": not is_excluded,
                             "coverage_reason": "Excluded non-medical consumable" if is_excluded else "Covered under inpatient treatment",
@@ -89,10 +76,13 @@ class InsuranceParserService:
                 except ValueError:
                     pass
 
-        # If no explicit line items were extracted, assign defaults based on text indicators
+        # Fallback if no line items extracted
         if not line_items:
-            # Detect amounts from entire text
-            all_numbers = [float(x.replace(",", "")) for x in re.findall(r"([0-9]{3,6}(?:\.[0-9]{2})?)", bill_text) if 100 <= float(x.replace(",", "")) <= 500000]
+            all_numbers = [
+                float(x.replace(",", ""))
+                for x in re.findall(r"([0-9]{3,6}(?:\.[0-9]{2})?)", bill_text)
+                if 100 <= float(x.replace(",", "")) <= 500000
+            ]
             if all_numbers:
                 total_billed = max(all_numbers)
                 line_items.append({
@@ -110,17 +100,35 @@ class InsuranceParserService:
                     {"description": "PPE, Sanitizers, Administrative Fee", "amount": 2500.0, "is_covered": False, "coverage_reason": "Non-payable administrative consumable"},
                 ]
 
+        # ── Deterministic calculations (Python, NOT AI) ───────────────────
         non_covered = sum(item["amount"] for item in line_items if not item["is_covered"])
         eligible_amount = max(0.0, total_billed - non_covered)
 
-        # Policy parameter detection (deductible and co-pay)
+        # Policy parameter detection from policy text
         policy_lower = policy_text.lower()
-        deductible = 2000.0 if "deductible" in policy_lower else 1500.0
-        copay_pct = 0.10  # 10% standard copay
+
+        # Deductible
+        deductible = 1500.0  # default
+        if "deductible" in policy_lower or "excess" in policy_lower:
+            deductible_match = re.search(r"(?:deductible|excess)[^\d]*([0-9,]+)", policy_lower)
+            if deductible_match:
+                try:
+                    deductible = float(deductible_match.group(1).replace(",", ""))
+                except ValueError:
+                    deductible = 2000.0
+            else:
+                deductible = 2000.0
+
+        # Co-pay percentage
+        copay_pct = 0.10  # default 10%
         if "20%" in policy_lower or "twenty percent" in policy_lower:
             copay_pct = 0.20
         elif "15%" in policy_lower:
             copay_pct = 0.15
+        elif "0%" in policy_lower or "zero copay" in policy_lower or "no copay" in policy_lower:
+            copay_pct = 0.00
+        elif "5%" in policy_lower:
+            copay_pct = 0.05
 
         deductible_applied = min(eligible_amount, deductible)
         after_deductible = max(0.0, eligible_amount - deductible_applied)
@@ -128,17 +136,25 @@ class InsuranceParserService:
         covered_amount = round(after_deductible - copay_applied, 2)
         out_of_pocket = round(total_billed - covered_amount, 2)
 
+        # Reconciliation check
+        assert abs((covered_amount + out_of_pocket) - total_billed) < 0.05, (
+            f"Calculation mismatch: covered={covered_amount} + oop={out_of_pocket} != total={total_billed}"
+        )
+
+        base_notes = (
+            f"Parsed {len(line_items)} line-items. "
+            f"Applied {int(copay_pct * 100)}% co-pay and ₹{int(deductible_applied)} deductible. "
+            f"Excluded ₹{int(non_covered)} in non-medical consumables."
+        )
+
         return {
-            "totalBilled": int(round(total_billed)),
-            "coveredAmount": int(round(covered_amount)),
-            "outOfPocket": int(round(out_of_pocket)),
-            "deductibleApplied": int(round(deductible_applied)),
-            "coPayApplied": int(round(copay_applied)),
-            "nonCoveredAmount": int(round(non_covered)),
-            "notes": (
-                f"Parsed {len(line_items)} line-items. Applied {int(copay_pct * 100)}% co-pay and "
-                f"₹{int(deductible_applied)} deductible. Excluded ₹{int(non_covered)} in non-medical consumables."
-            ),
+            "totalBilled": round(total_billed, 2),
+            "coveredAmount": round(covered_amount, 2),
+            "outOfPocket": round(out_of_pocket, 2),
+            "deductibleApplied": round(deductible_applied, 2),
+            "coPayApplied": round(copay_applied, 2),
+            "nonCoveredAmount": round(non_covered, 2),
+            "notes": base_notes,
             "lineItems": line_items,
         }
 
@@ -152,34 +168,43 @@ class InsuranceParserService:
         bill_bytes = await bill_file.read()
         policy_bytes = await policy_file.read()
 
+        # Validate files
+        if len(bill_bytes) == 0:
+            raise ValueError("Bill file is empty")
+        if len(policy_bytes) == 0:
+            raise ValueError("Policy file is empty")
+
         bill_text = self.extract_text_from_file(bill_file, bill_bytes)
         policy_text = self.extract_text_from_file(policy_file, policy_bytes)
 
-        # Always run deterministic rule-based engine
+        # Step 1: Always run deterministic rule-based engine (Python calculations)
         calc = self._rule_based_parse(bill_text, policy_text)
 
-        # If LLM is available and text is substantial, enhance notes using Gemini
-        llm = self._get_llm()
-        if llm and len(bill_text) > 50 and len(policy_text) > 50:
+        # Step 2: Use AI (Groq → Ollama fallback) only for generating explanation notes
+        if len(bill_text) > 50 and len(policy_text) > 50:
             try:
-                from langchain_core.prompts import PromptTemplate
-                prompt = PromptTemplate(
-                    input_variables=["bill", "policy", "total"],
-                    template=(
-                        "You are a medical claims insurance auditor. "
-                        "Summarize the coverage matching rationale between this bill and policy in 2 concise sentences.\n"
-                        "Bill Summary: {bill}\nPolicy Summary: {policy}\nEstimated Total: {total}"
-                    ),
+                prompt_text = (
+                    "You are a medical insurance claims auditor. "
+                    "Summarize the coverage matching rationale between this bill and policy in 2 concise sentences. "
+                    "Be factual and do not invent numbers.\n"
+                    f"Bill Summary (first 500 chars): {bill_text[:500]}\n"
+                    f"Policy Summary (first 500 chars): {policy_text[:500]}\n"
+                    f"Calculated Total Billed: ₹{calc['totalBilled']}, "
+                    f"Covered: ₹{calc['coveredAmount']}, "
+                    f"Out-of-Pocket: ₹{calc['outOfPocket']}"
                 )
-                chain = prompt | llm
-                explanation = chain.invoke({
-                    "bill": bill_text[:500],
-                    "policy": policy_text[:500],
-                    "total": calc["totalBilled"],
-                }).content
-                calc["notes"] = explanation.strip()
+                messages = ai_provider_service.build_messages(
+                    system_prompt="You are a professional medical insurance claims auditor. Be concise and accurate.",
+                    user_message=prompt_text,
+                )
+                explanation = ai_provider_service.generate_response(
+                    messages=messages, temperature=0.1, max_tokens=200
+                )
+                # Only use AI notes if it's not an error message
+                if explanation and "⚠️" not in explanation and "unavailable" not in explanation.lower():
+                    calc["notes"] = explanation.strip()
             except Exception as e:
-                logger.warning(f"LLM claim refinement skipped: {e}")
+                logger.warning(f"AI claim notes generation skipped: {e}")
 
         # Persist claim in database if session available
         if db is not None:

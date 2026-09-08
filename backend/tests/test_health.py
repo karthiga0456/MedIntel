@@ -58,55 +58,17 @@ def test_root_serves_html(client):
 # ── Module ping endpoints ─────────────────────────────────────────────────────
 
 def test_module_pings(client):
-    """Every module router must expose a /ping that returns status=ok."""
+    """Every active module router must expose a /ping that returns status=ok."""
     ping_paths = [
         "/api/v1/assistant/ping",
         "/api/v1/rag/ping",
-        "/api/v1/outbreak/ping",
-        "/api/v1/worker/ping",
+        "/api/v1/hospitals/ping",
     ]
     for path in ping_paths:
         response = client.get(path)
         assert response.status_code == 200, f"Ping failed for {path}"
         body = response.json()
         assert body.get("status") == "ok", f"Unexpected body for {path}: {body}"
-
-
-# ── Health Worker Portal CRUD ─────────────────────────────────────────────────
-
-def test_create_health_record(client):
-    """POST /api/v1/worker/records should persist a record and return it."""
-    payload = {
-        "patient_name": "Ravi Kumar",
-        "village": "Thanjavur",
-        "age": 34,
-        "symptoms": "fever, cough",
-        "vaccination_status": "fully_vaccinated",
-        "worker_id": "worker-test-001",
-    }
-    response = client.post("/api/v1/worker/records", json=payload)
-    assert response.status_code == 200, f"Create record failed: {response.text}"
-    body = response.json()
-    assert body["patient_name"] == "Ravi Kumar"
-    assert body["worker_id"] == "worker-test-001"
-    assert "id" in body
-    assert body["synced"] is False
-
-
-def test_list_health_records(client):
-    """GET /api/v1/worker/records should return a list."""
-    response = client.get("/api/v1/worker/records")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-def test_list_records_filtered_by_worker(client):
-    """GET /api/v1/worker/records?worker_id=X should filter correctly."""
-    response = client.get("/api/v1/worker/records?worker_id=worker-test-001")
-    assert response.status_code == 200
-    records = response.json()
-    for r in records:
-        assert r["worker_id"] == "worker-test-001"
 
 
 # ── Knowledge Assistant stub ──────────────────────────────────────────────────
@@ -135,21 +97,3 @@ def test_rag_query_stub(client):
     body = response.json()
     assert "answer" in body
 
-
-# ── Outbreak Prediction stub ──────────────────────────────────────────────────
-
-def test_outbreak_predict_stub(client):
-    """POST /api/v1/outbreak/predict should return risk_level and predicted_cases."""
-    response = client.post(
-        "/api/v1/outbreak/predict",
-        json={
-            "region": "Coimbatore",
-            "disease": "dengue",
-            "recent_case_counts": [10, 12, 15, 18],
-            "weather_features": {"temp": 30, "humidity": 80},
-        },
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert "risk_level" in body
-    assert "predicted_cases_next_7_days" in body

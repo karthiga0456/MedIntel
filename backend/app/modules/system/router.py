@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db.session import get_db
+from app.core.ai_provider import ai_provider_service
 
 router = APIRouter()
 
@@ -26,9 +27,15 @@ def get_health(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/health/ai", tags=["System Observability"])
+def get_ai_health():
+    """Returns AI provider configuration and readiness status without revealing sensitive secrets."""
+    return ai_provider_service.get_provider_status()
+
+
 @router.get("/ready", tags=["System Observability"])
 def get_readiness(db: Session = Depends(get_db)):
-    """Readiness probe: checks subsystem availability (DB, AI, OCR, Vector DB, ML Models, Storage)."""
+    """Readiness probe: checks subsystem availability (DB, AI, OCR, Vector DB, Storage)."""
     # 1. Database
     db_ok = True
     try:
@@ -36,8 +43,8 @@ def get_readiness(db: Session = Depends(get_db)):
     except Exception:
         db_ok = False
 
-    # 2. AI (Gemini)
-    ai_status = "configured" if bool(settings.google_api_key) else "unconfigured (graceful fallback active)"
+    # 2. AI Provider Status
+    ai_info = ai_provider_service.get_provider_status()
 
     # 3. Vector DB / FAISS directory
     faiss_dir = settings.vector_db_path
@@ -54,12 +61,7 @@ def get_readiness(db: Session = Depends(get_db)):
     except Exception:
         storage_ok = False
 
-    # 5. ML Models
-    lstm_exists = os.path.exists("./data/models/outbreak_lstm.keras")
-    xgb_exists = os.path.exists("./data/models/outbreak_xgb.json")
-    ml_status = "models_loaded" if (lstm_exists and xgb_exists) else "baseline_epidemiological_active"
-
-    # 6. OCR (pytesseract)
+    # 5. OCR (pytesseract)
     ocr_status = "available"
     try:
         import pytesseract
@@ -72,10 +74,11 @@ def get_readiness(db: Session = Depends(get_db)):
         "status": overall_status,
         "services": {
             "database": "healthy" if db_ok else "unhealthy",
-            "ai_gemini": ai_status,
+            "ai_provider": ai_info.get("active_provider", settings.ai_provider),
+            "ai_groq_status": ai_info.get("groq", "unknown"),
             "vector_store": faiss_status,
             "ocr_engine": ocr_status,
-            "ml_inference": ml_status,
             "storage": "writable" if storage_ok else "read_only",
         },
     }
+

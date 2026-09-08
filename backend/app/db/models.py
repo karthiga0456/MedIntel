@@ -132,6 +132,8 @@ class Medicine(Base):
     standard_frequency = Column(String(100), nullable=True)
     interactions = Column(JSON, nullable=True)  # List of drug names that interact
     warnings = Column(Text, nullable=True)
+    indications = Column(Text, nullable=True)
+    side_effects = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     prescription_items = relationship("PrescriptionItem", back_populates="medicine")

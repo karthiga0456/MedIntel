@@ -11,7 +11,7 @@ python-dotenv==1.0.1
 # --- Module 1: AI Medical Knowledge Assistant ---
 langchain==0.3.3
 langchain-community==0.3.2
-langchain-google-genai==2.0.1
+
 
 # --- Module 2: Healthcare RAG System ---
 faiss-cpu==1.8.0
@@ -19,12 +19,7 @@ pypdf==4.3.1
 pytesseract==0.3.13
 Pillow==10.4.0
 
-# --- Module 3: Outbreak Prediction Engine ---
-scikit-learn==1.5.2
-xgboost==2.1.1
-tensorflow==2.17.0   # LSTM
-pandas==2.2.3
-numpy==1.26.4
+# --- Module 3: Outbreak Prediction Engine (Removed) ---
 
 # --- Module 4: Health Worker Portal (offline-first) ---
 sqlalchemy==2.0.35

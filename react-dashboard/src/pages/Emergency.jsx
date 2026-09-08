@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Siren, 
   Warning, 
@@ -15,6 +16,7 @@ import {
 import { api } from '../services/api';
 
 export default function Emergency() {
+  const navigate = useNavigate();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -183,14 +185,24 @@ export default function Emergency() {
           </div>
         </div>
 
-        <button 
-          onClick={() => setShowModal(true)}
-          className="btn-primary" 
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-        >
-          <PlusCircle size={18} weight="bold" />
-          Log Emergency Case
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button 
+            onClick={() => navigate('/dashboard/nearby-hospitals')}
+            className="btn-secondary" 
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderColor: '#3b82f6', color: '#3b82f6' }}
+          >
+            <FirstAid size={18} weight="bold" />
+            Find Nearby Hospitals
+          </button>
+          <button 
+            onClick={() => setShowModal(true)}
+            className="btn-primary" 
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+          >
+            <PlusCircle size={18} weight="bold" />
+            Log Emergency Case
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -392,15 +404,19 @@ export default function Emergency() {
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                 ASSIGNED FIELD WORKER / UNIT
               </label>
-              <select 
+              <input 
+                type="text"
+                list="worker-list"
                 className="input-field" 
                 value={dispatchWorkerId} 
                 onChange={(e) => setDispatchWorkerId(e.target.value)}
-              >
-                <option value="worker-field-1">Unit 1 - Priya Sharma (Rapid Response)</option>
-                <option value="worker-field-2">Unit 2 - Rajesh Kumar (ASHA Lead)</option>
-                <option value="ambulance-108">108 Emergency Ambulance Unit (GVK EMRI)</option>
-              </select>
+                placeholder="Select or type a custom worker name..."
+              />
+              <datalist id="worker-list">
+                <option value="Unit 1 - Priya Sharma (Rapid Response)" />
+                <option value="Unit 2 - Rajesh Kumar (ASHA Lead)" />
+                <option value="108 Emergency Ambulance Unit (GVK EMRI)" />
+              </datalist>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>

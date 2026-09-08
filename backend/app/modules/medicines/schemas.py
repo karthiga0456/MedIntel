@@ -10,6 +10,8 @@ class MedicineBase(BaseModel):
     default_dosage: Optional[str] = None
     standard_frequency: Optional[str] = None
     warnings: Optional[str] = None
+    indications: Optional[str] = None
+    side_effects: Optional[str] = None
     interactions: Optional[List[str]] = []
 
 

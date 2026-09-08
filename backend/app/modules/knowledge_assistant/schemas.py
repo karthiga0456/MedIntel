@@ -17,6 +17,7 @@ class ChatResponse(BaseModel):
     disclaimer: Optional[str] = None      # health safety notice
     is_emergency: bool = False
     emergency_details: Optional[str] = None
+    provider: Optional[str] = None        # 'groq', 'ollama', or 'offline'
 
 
 class ChatMessage(BaseModel):

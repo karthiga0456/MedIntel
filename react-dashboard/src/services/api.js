@@ -119,28 +119,10 @@ export const api = {
     getPatientDocuments: async (patientId) => fetchAPI(`/rag/patient/${patientId}`),
   },
 
-  // ── Lab Analyzer ───────────────────────────────────────────────────
-  labs: {
-    uploadReport: async (file, patientId, testType = 'Complete Blood Count (CBC)') => {
-      const token = localStorage.getItem('medintel_token');
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('patient_id', patientId);
-      formData.append('test_type', testType);
-
-      const response = await fetch(`${BASE_URL}/labs/upload`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error('Lab report analysis failed');
-      }
-      return await response.json();
-    },
-    getPatientHistory: async (patientId) => fetchAPI(`/labs/patient/${patientId}`),
+  // ── Nearby Hospitals ───────────────────────────────────────────────
+  hospitals: {
+    getNearby: async (lat, lon, radius = 5.0) =>
+      fetchAPI(`/hospitals/nearby?latitude=${lat}&longitude=${lon}&radius=${radius}`),
   },
 
   // ── Medicines & Prescriptions ──────────────────────────────────────
@@ -171,40 +153,6 @@ export const api = {
       }
       return await response.json();
     },
-  },
-
-  // ── Outbreak Prediction Engine ─────────────────────────────────────
-  outbreak: {
-    predict: async (region, disease, recentCases = [10, 12, 15], weather = { temp: 30, humidity: 80, rainfall: 25 }) =>
-      fetchAPI('/outbreak/predict', {
-        method: 'POST',
-        body: JSON.stringify({
-          region,
-          disease,
-          recent_case_counts: recentCases,
-          weather_features: weather,
-        }),
-      }),
-  },
-
-  // ── Disease Surveillance ───────────────────────────────────────────
-  surveillance: {
-    reportCase: async (data) => fetchAPI('/surveillance/cases', { method: 'POST', body: JSON.stringify(data) }),
-    getSummary: async () => fetchAPI('/surveillance/summary'),
-  },
-
-  // ── GIS Health Map ─────────────────────────────────────────────────
-  map: {
-    getLayers: async () => fetchAPI('/map/layers'),
-  },
-
-  // ── Health Worker Portal & Visits ──────────────────────────────────
-  worker: {
-    submitRecord: async (data) => fetchAPI('/worker/records', { method: 'POST', body: JSON.stringify(data) }),
-    getRecords: async (workerId = null) => fetchAPI(`/worker/records${workerId ? `?worker_id=${workerId}` : ''}`),
-    getProfile: async () => fetchAPI('/worker/profile'),
-    logVisit: async (data) => fetchAPI('/worker/visits', { method: 'POST', body: JSON.stringify(data) }),
-    getVisits: async () => fetchAPI('/worker/visits'),
   },
 
   // ── Offline Sync API ───────────────────────────────────────────────
