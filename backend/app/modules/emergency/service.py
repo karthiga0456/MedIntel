@@ -12,9 +12,10 @@ logger = get_logger(__name__)
 
 class EmergencyService:
     def create_case(self, db: Session, data: EmergencyCaseCreate) -> EmergencyCase:
+        pid = data.patient_id if (data.patient_id and data.patient_id.strip()) else None
         ec = EmergencyCase(
             patient_name=data.patient_name,
-            patient_id=data.patient_id,
+            patient_id=pid,
             symptoms=data.symptoms,
             severity=data.severity.upper(),
             location=data.location,
@@ -22,6 +23,7 @@ class EmergencyService:
             status="PENDING",
             created_at=datetime.utcnow(),
         )
+
         db.add(ec)
         db.commit()
         db.refresh(ec)

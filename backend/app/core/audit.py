@@ -24,9 +24,14 @@ def log_audit_event(
     Log an event to the audit table and system logger.
     """
     try:
-        from app.db.models import AuditLog
+        from app.db.models import AuditLog, User
+        valid_user_id = None
+        if user_id:
+            if db.query(User).filter(User.id == user_id).first():
+                valid_user_id = user_id
+
         audit_entry = AuditLog(
-            user_id=user_id,
+            user_id=valid_user_id,
             action=action,
             resource=resource,
             resource_id=resource_id,
@@ -38,3 +43,4 @@ def log_audit_event(
         logger.info(f"AUDIT: action={action} user={user_id} resource={resource}:{resource_id} result={result}")
     except Exception as e:
         logger.error(f"Failed to record audit log: {e}")
+

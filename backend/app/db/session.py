@@ -31,23 +31,19 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-_db_initialized = False
-
 def get_db():
     """FastAPI dependency that yields a DB session and closes it afterward."""
-    global _db_initialized
-    if not _db_initialized:
-        try:
-            init_db()
-        except Exception as e:
-            print(f"Lazy DB init warning: {e}")
-        _db_initialized = True
+    try:
+        init_db()
+    except Exception as e:
+        print(f"DB init warning: {e}")
 
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
 
 
 def init_db():

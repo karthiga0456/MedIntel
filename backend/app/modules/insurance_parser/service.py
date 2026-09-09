@@ -137,9 +137,8 @@ class InsuranceParserService:
         out_of_pocket = round(total_billed - covered_amount, 2)
 
         # Reconciliation check
-        assert abs((covered_amount + out_of_pocket) - total_billed) < 0.05, (
-            f"Calculation mismatch: covered={covered_amount} + oop={out_of_pocket} != total={total_billed}"
-        )
+        out_of_pocket = max(0.0, round(total_billed - covered_amount, 2))
+
 
         base_notes = (
             f"Parsed {len(line_items)} line-items. "

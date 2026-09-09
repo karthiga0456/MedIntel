@@ -105,6 +105,22 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled error on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": str(exc) or "Internal Server Error",
+            }
+        },
+    )
+
+
+
 # ── Register all API routers ───────────────────────────────────────────────────
 app.include_router(assistant_router,     prefix="/api/v1/assistant",     tags=["AI Medical Knowledge Assistant"])
 app.include_router(rag_router,           prefix="/api/v1/rag",           tags=["Healthcare RAG System"])
