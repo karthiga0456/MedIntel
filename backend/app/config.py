@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     local_db_url: str = "sqlite:///./data/local_db/health_worker.db"
 
     # ── Security ────────────────────────────────────────────────────────────
-    secret_key: str = "change-me-in-production"
+    # Stable default ensures JWT tokens signed locally also validate on Vercel
+    # (without this, Vercel uses a different default and all tokens are rejected)
+    secret_key: str = "medintel-super-secret-key-change-in-prod"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

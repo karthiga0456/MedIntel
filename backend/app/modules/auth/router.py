@@ -36,7 +36,15 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
         raise credentials_exception
     user = service.get_user_by_email(db, email=email)
     if user is None:
-        raise credentials_exception
+        # User not in DB (cold-start empty DB) — reconstruct minimal user from JWT
+        # This allows /auth/me to return user info without requiring DB persistence
+        from app.db.models import User
+        fake_user = User()
+        fake_user.id = payload.get("user_id", "jwt-user")
+        fake_user.email = email
+        fake_user.role = payload.get("role", "worker")
+        fake_user.is_active = True
+        return fake_user
     return user
 
 

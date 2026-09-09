@@ -16,6 +16,15 @@ async function fetchAPI(endpoint, options = {}) {
     });
 
     if (!response.ok) {
+      // Auto-logout on invalid/expired token — forces fresh login
+      if (response.status === 401) {
+        localStorage.removeItem('medintel_token');
+        localStorage.removeItem('medintel_user');
+        // Redirect to login if not already there
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }
       let errDetail = `${response.status} ${response.statusText}`;
       try {
         const errJson = await response.json();
