@@ -4,9 +4,6 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-import pypdf
-from PIL import Image
-import pytesseract
 
 from app.core.logging import get_logger
 from app.db.models import Medicine, Prescription, PrescriptionItem, Patient
@@ -19,7 +16,28 @@ from app.modules.medicines.schemas import (
     AllergyWarning,
 )
 
+# Lazy imports — may not be available in all deployment environments
+try:
+    import pypdf as _pypdf
+    _PYPDF_AVAILABLE = True
+except ImportError:
+    _PYPDF_AVAILABLE = False
+
+try:
+    from PIL import Image as _PilImage
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+try:
+    import pytesseract as _pytesseract
+    _pytesseract.get_tesseract_version()
+    _TESSERACT_AVAILABLE = True
+except Exception:
+    _TESSERACT_AVAILABLE = False
+
 logger = get_logger(__name__)
+
 
 # Standard Essential Medicines Dataset (WHO / National Essential Medicines List)
 INITIAL_MEDICINES: List[Dict[str, Any]] = [
@@ -301,18 +319,24 @@ class MedicineService:
         ext = filename.split(".")[-1].lower()
         text = ""
         if ext == "pdf":
-            try:
-                reader = pypdf.PdfReader(io.BytesIO(content))
-                for page in reader.pages:
-                    text += (page.extract_text() or "") + "\n"
-            except Exception as e:
-                logger.error(f"Error reading prescription PDF: {e}")
+            if not _PYPDF_AVAILABLE:
+                logger.warning("pypdf not available; skipping PDF prescription parsing")
+            else:
+                try:
+                    reader = _pypdf.PdfReader(io.BytesIO(content))
+                    for page in reader.pages:
+                        text += (page.extract_text() or "") + "\n"
+                except Exception as e:
+                    logger.error(f"Error reading prescription PDF: {e}")
         elif ext in ["png", "jpg", "jpeg"]:
-            try:
-                img = Image.open(io.BytesIO(content))
-                text = pytesseract.image_to_string(img)
-            except Exception as e:
-                logger.error(f"Error OCR on prescription image: {e}")
+            if not _TESSERACT_AVAILABLE or not _PIL_AVAILABLE:
+                logger.warning("Tesseract/PIL not available; skipping OCR")
+            else:
+                try:
+                    img = _PilImage.open(io.BytesIO(content))
+                    text = _pytesseract.image_to_string(img)
+                except Exception as e:
+                    logger.error(f"Error OCR on prescription image: {e}")
 
         # Extract medicines detected from text
         detected_meds = []

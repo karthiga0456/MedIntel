@@ -2,14 +2,31 @@ import io
 import re
 from typing import Dict, Any, List, Optional
 from fastapi import UploadFile
-import pypdf
-from PIL import Image
-import pytesseract
-
 from app.config import settings
 from app.core.logging import get_logger
 from app.core.ai_provider import ai_provider_service
 from app.modules.insurance_parser.schemas import InsuranceClaimResponse
+
+# Lazy imports — these may not be available in all environments
+try:
+    import pypdf
+    _PYPDF_AVAILABLE = True
+except ImportError:
+    _PYPDF_AVAILABLE = False
+
+try:
+    from PIL import Image
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+try:
+    import pytesseract
+    # Quick binary check — this will raise if tesseract is not installed
+    pytesseract.get_tesseract_version()
+    _TESSERACT_AVAILABLE = True
+except Exception:
+    _TESSERACT_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -29,6 +46,9 @@ class InsuranceParserService:
         filename = (file.filename or "").lower()
         text = ""
         if filename.endswith(".pdf"):
+            if not _PYPDF_AVAILABLE:
+                logger.warning("pypdf not available; skipping PDF extraction")
+                return ""
             try:
                 reader = pypdf.PdfReader(io.BytesIO(content))
                 for page in reader.pages:
@@ -36,6 +56,9 @@ class InsuranceParserService:
             except Exception as e:
                 logger.error(f"Error parsing PDF: {e}")
         elif any(filename.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp"]):
+            if not _TESSERACT_AVAILABLE or not _PIL_AVAILABLE:
+                logger.warning("Tesseract/PIL not available; skipping OCR")
+                return ""
             try:
                 img = Image.open(io.BytesIO(content))
                 text = pytesseract.image_to_string(img)

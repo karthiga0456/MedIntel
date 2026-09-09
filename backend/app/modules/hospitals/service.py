@@ -26,9 +26,10 @@ logger = get_logger(__name__)
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
 
-TIMEOUT_SECONDS = 20.0
+TIMEOUT_SECONDS = 8.0  # Vercel serverless limit is ~10s per function invocation
 
 # ── Simple in-memory cache ────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ def _normalize_element(element: Dict[str, Any], user_lat: float, user_lon: float
 
 def _build_overpass_query(lat: float, lon: float, radius_m: int) -> str:
     return f"""
-[out:json][timeout:18];
+[out:json][timeout:7];
 (
   node["amenity"="hospital"](around:{radius_m},{lat},{lon});
   way["amenity"="hospital"](around:{radius_m},{lat},{lon});

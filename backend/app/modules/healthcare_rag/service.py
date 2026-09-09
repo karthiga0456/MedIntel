@@ -4,9 +4,6 @@ import io
 import re
 from typing import Optional, List
 from datetime import datetime
-from PIL import Image
-import pytesseract
-import pypdf
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -18,6 +15,26 @@ from app.modules.healthcare_rag.schemas import (
     DocumentQueryResponse,
     UploadResponse,
 )
+
+# Lazy imports — may not be available in all deployment environments
+try:
+    from PIL import Image as _PilImage
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+try:
+    import pytesseract as _pytesseract
+    _pytesseract.get_tesseract_version()
+    _TESSERACT_AVAILABLE = True
+except Exception:
+    _TESSERACT_AVAILABLE = False
+
+try:
+    import pypdf as _pypdf
+    _PYPDF_AVAILABLE = True
+except ImportError:
+    _PYPDF_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -62,20 +79,26 @@ class HealthcareRAGService:
         ext = filename.split(".")[-1].lower()
 
         if ext == "pdf":
-            try:
-                reader = pypdf.PdfReader(io.BytesIO(content))
-                for page in reader.pages:
-                    text = page.extract_text() or ""
-                    extracted_text += text + "\n"
-            except Exception as e:
-                logger.warning(f"pypdf reader error: {e}")
+            if not _PYPDF_AVAILABLE:
+                logger.warning("pypdf not available; skipping PDF extraction")
+            else:
+                try:
+                    reader = _pypdf.PdfReader(io.BytesIO(content))
+                    for page in reader.pages:
+                        text = page.extract_text() or ""
+                        extracted_text += text + "\n"
+                except Exception as e:
+                    logger.warning(f"pypdf reader error: {e}")
 
         elif ext in ["png", "jpg", "jpeg", "webp", "bmp"]:
-            try:
-                image = Image.open(io.BytesIO(content))
-                extracted_text = pytesseract.image_to_string(image)
-            except Exception as e:
-                logger.warning(f"Image OCR error: {e}")
+            if not _TESSERACT_AVAILABLE or not _PIL_AVAILABLE:
+                logger.warning("Tesseract/PIL not available; skipping OCR")
+            else:
+                try:
+                    image = _PilImage.open(io.BytesIO(content))
+                    extracted_text = _pytesseract.image_to_string(image)
+                except Exception as e:
+                    logger.warning(f"Image OCR error: {e}")
 
         # Resilient fallback if text extraction yielded no plain text
         if not extracted_text.strip():

@@ -27,7 +27,7 @@ def register_patient(
         resource="patient",
         resource_id=patient.id,
         result="SUCCESS",
-        ip_address=request.client.host if request.client else None,
+        ip_address=request.client.host if request and request.client else None,
     )
     return patient
 
@@ -141,7 +141,7 @@ def update_patient(
         resource="patient",
         resource_id=patient_id,
         result="SUCCESS",
-        ip_address=request.client.host if request.client else None,
+        ip_address=request.client.host if request and request.client else None,
     )
     return updated
 
@@ -162,7 +162,7 @@ def archive_patient(
         resource="patient",
         resource_id=patient_id,
         result="SUCCESS",
-        ip_address=request.client.host if request.client else None,
+        ip_address=request.client.host if request and request.client else None,
     )
     return {"message": "Patient archived successfully"}
 
