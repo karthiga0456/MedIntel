@@ -1,6 +1,11 @@
 {
   "buildCommand": "cd react-dashboard && npm install && npm run build",
   "outputDirectory": "react-dashboard/dist",
+  "functions": {
+    "api/**/*.py": {
+      "runtime": "python3.12"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
