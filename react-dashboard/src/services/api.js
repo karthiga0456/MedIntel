@@ -1,7 +1,6 @@
 const BASE_URL = '/api/v1';
 
 async function fetchAPI(endpoint, options = {}) {
-  const token = localStorage.getItem('medintel_token');
   try {
     const isFullUrl = endpoint.startsWith('http') || endpoint.startsWith('/api/');
     const url = isFullUrl ? endpoint : `${BASE_URL}${endpoint}`;
@@ -10,21 +9,11 @@ async function fetchAPI(endpoint, options = {}) {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers,
       },
     });
 
     if (!response.ok) {
-      // Auto-logout on invalid/expired token — forces fresh login
-      if (response.status === 401) {
-        localStorage.removeItem('medintel_token');
-        localStorage.removeItem('medintel_user');
-        // Redirect to login if not already there
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-      }
       let errDetail = `${response.status} ${response.statusText}`;
       try {
         const errJson = await response.json();
@@ -42,26 +31,20 @@ async function fetchAPI(endpoint, options = {}) {
 }
 
 export const api = {
-  // ── Authentication & RBAC ──────────────────────────────────────────
+  // ── Authentication ─────────────────────────────────────────────────
   auth: {
     login: async (username, password) => {
       const formData = new URLSearchParams();
       formData.append('username', username);
       formData.append('password', password);
-
       const response = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
       });
       if (!response.ok) {
         let msg = 'Login failed';
-        try {
-          const err = await response.json();
-          msg = err.detail || msg;
-        } catch (_) {}
+        try { const err = await response.json(); msg = err.detail || msg; } catch (_) {}
         throw new Error(msg);
       }
       return await response.json();
@@ -107,22 +90,12 @@ export const api = {
         body: JSON.stringify({ query, patient_id: patientId, document_id: documentId }),
       }),
     uploadDocument: async (file, patientId = null, docType = 'medical_report') => {
-      const token = localStorage.getItem('medintel_token');
       const formData = new FormData();
       formData.append('file', file);
       if (patientId) formData.append('patient_id', patientId);
       formData.append('doc_type', docType);
-
-      const response = await fetch(`${BASE_URL}/rag/upload`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error('File upload failed');
-      }
+      const response = await fetch(`${BASE_URL}/rag/upload`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('File upload failed');
       return await response.json();
     },
     getPatientDocuments: async (patientId) => fetchAPI(`/rag/patient/${patientId}`),
@@ -140,26 +113,16 @@ export const api = {
     checkSafety: async (patientId, medicineNames) =>
       fetchAPI('/medicines/check-safety', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: patientId, medicine_names: medicineNames }),
       }),
     createPrescription: async (data) =>
       fetchAPI('/medicines/prescriptions', { method: 'POST', body: JSON.stringify(data) }),
     getPatientPrescriptions: async (patientId) => fetchAPI(`/medicines/prescriptions/patient/${patientId}`),
     ocrPrescription: async (file) => {
-      const token = localStorage.getItem('medintel_token');
       const formData = new FormData();
       formData.append('file', file);
-      const response = await fetch(`${BASE_URL}/medicines/prescriptions/ocr`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error('Prescription OCR failed');
-      }
+      const response = await fetch(`${BASE_URL}/medicines/prescriptions/ocr`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Prescription OCR failed');
       return await response.json();
     },
   },
@@ -176,22 +139,12 @@ export const api = {
   // ── Insurance Claim Intelligence ───────────────────────────────────
   insurance: {
     calculateClaim: async (billFile, policyFile, patientId = null) => {
-      const token = localStorage.getItem('medintel_token');
       const formData = new FormData();
       formData.append('bill_file', billFile);
       formData.append('policy_file', policyFile);
       if (patientId) formData.append('patient_id', patientId);
-
-      const response = await fetch(`${BASE_URL}/insurance/calculate`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error('Insurance claim calculation failed');
-      }
+      const response = await fetch(`${BASE_URL}/insurance/calculate`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Insurance claim calculation failed');
       return await response.json();
     },
     getPatientClaims: async (patientId) => fetchAPI(`/insurance/claims/patient/${patientId}`),

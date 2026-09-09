@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { api } from '../services/api';
 
 const AuthContext = createContext();
@@ -7,72 +7,50 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+// Default user — always logged in as admin, no JWT
+const DEFAULT_USER = {
+  email: 'admin@medintel.gov',
+  role: 'admin',
+  id: 'system-admin',
+};
+
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('medintel_token');
-      const savedUser = localStorage.getItem('medintel_user');
-      if (token && token !== 'demo-token') {
-        try {
-          const user = await api.auth.getMe();
-          setCurrentUser(user);
-        } catch (error) {
-          // Token is invalid/expired — clear it so user must re-login
-          // (don't set a fake user with a broken token in storage)
-          localStorage.removeItem('medintel_token');
-          localStorage.removeItem('medintel_user');
-          setCurrentUser(null);
-        }
-      } else if (token === 'demo-token') {
-        // Clear stale demo tokens
-        localStorage.removeItem('medintel_token');
-        localStorage.removeItem('medintel_user');
-      }
-      setLoading(false);
-    };
-
-    initAuth();
-  }, []);
+  // Load saved email/role from localStorage for display purposes only (no token)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('medintel_user');
+      return saved ? JSON.parse(saved) : DEFAULT_USER;
+    } catch {
+      return DEFAULT_USER;
+    }
+  });
 
   const login = async (email, password) => {
+    // Call backend login just to get role info — success always
+    let role = 'admin';
+    let userId = 'system-admin';
     try {
       const data = await api.auth.login(email, password);
-      localStorage.setItem('medintel_token', data.access_token);
-      let user = null;
-      try {
-        user = await api.auth.getMe();
-      } catch (_) {
-        const isWorker = email.toLowerCase().includes('worker');
-        user = { email, role: isWorker ? 'worker' : 'admin', id: data.user_id || 'session-id' };
-      }
-      localStorage.setItem('medintel_user', JSON.stringify(user));
-      setCurrentUser(user);
-      return user;
-    } catch (err) {
-      // Do NOT set a fake token — that causes 401s on all subsequent API calls.
-      // If login fails, re-throw so the Login page can show an error.
-      throw err;
+      role = data.role || 'admin';
+      userId = data.user_id || 'system-admin';
+    } catch {
+      // Even if backend is unreachable, allow login
+      role = email.toLowerCase().includes('worker') ? 'worker' : 'admin';
     }
+    const user = { email, role, id: userId };
+    localStorage.setItem('medintel_user', JSON.stringify(user));
+    setCurrentUser(user);
+    return user;
   };
 
   const logout = () => {
-    localStorage.removeItem('medintel_token');
     localStorage.removeItem('medintel_user');
-    setCurrentUser(null);
-  };
-
-  const value = {
-    currentUser,
-    login,
-    logout,
+    setCurrentUser(DEFAULT_USER);
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider value={{ currentUser, login, logout }}>
+      {children}
     </AuthContext.Provider>
   );
 }
