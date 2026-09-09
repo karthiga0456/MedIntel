@@ -11,13 +11,19 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
 db_url = settings.local_db_url
-if os.environ.get("VERCEL"):
+if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
     db_url = "sqlite:////tmp/health_worker.db"
 else:
     try:
-        pathlib.Path("./data/local_db").mkdir(parents=True, exist_ok=True)
+        data_path = pathlib.Path("./data/local_db")
+        data_path.mkdir(parents=True, exist_ok=True)
+        # Test file creation to ensure directory is writable
+        test_file = data_path / ".write_test"
+        test_file.touch()
+        test_file.unlink()
     except Exception:
         db_url = "sqlite:////tmp/health_worker.db"
+
 
 engine = create_engine(
     db_url, connect_args={"check_same_thread": False}

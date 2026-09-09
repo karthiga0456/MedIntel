@@ -53,13 +53,16 @@ def get_readiness(db: Session = Depends(get_db)):
     # 4. Storage writable check
     storage_ok = True
     try:
-        test_file = "./data/test_write.tmp"
+        target_dir = "/tmp" if (os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV")) else "./data"
+        os.makedirs(target_dir, exist_ok=True)
+        test_file = os.path.join(target_dir, "test_write.tmp")
         with open(test_file, "w") as f:
             f.write("ok")
         if os.path.exists(test_file):
             os.remove(test_file)
     except Exception:
         storage_ok = False
+
 
     # 5. OCR (pytesseract)
     ocr_status = "available"

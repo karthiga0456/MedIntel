@@ -9,10 +9,6 @@ import pytesseract
 import pypdf
 from sqlalchemy.orm import Session
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-
 from app.core.logging import get_logger
 from app.config import settings
 from app.core.ai_provider import ai_provider_service
@@ -37,10 +33,29 @@ SYSTEM_PROMPT = (
 
 class HealthcareRAGService:
     def __init__(self):
-        self.vector_db_path = settings.vector_db_path
-        os.makedirs(self.vector_db_path, exist_ok=True)
+        if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+            self.vector_db_path = "/tmp/vector_store"
+        else:
+            self.vector_db_path = settings.vector_db_path
+
+        try:
+            os.makedirs(self.vector_db_path, exist_ok=True)
+        except Exception:
+            self.vector_db_path = "/tmp/vector_store"
+            os.makedirs(self.vector_db_path, exist_ok=True)
+
         self.index_path = os.path.join(self.vector_db_path, "faiss_index")
-        self.embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model)
+        self._embeddings = None
+
+    def _get_embeddings(self):
+        if self._embeddings is None:
+            try:
+                from langchain_community.embeddings import HuggingFaceEmbeddings
+                self._embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model)
+            except Exception as e:
+                logger.warning(f"Embedding model initialization skipped/failed: {e}")
+                self._embeddings = None
+        return self._embeddings
 
     def _extract_text(self, filename: str, content: bytes) -> str:
         extracted_text = ""
@@ -78,6 +93,21 @@ class HealthcareRAGService:
         extracted_text = re.sub(r"\s+", " ", extracted_text).strip()
         return extracted_text
 
+    def _split_text(self, text: str, chunk_size: int = 800, chunk_overlap: int = 100) -> List[str]:
+        try:
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+            splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            return splitter.split_text(text)
+        except Exception:
+            # Fallback simple chunking without langchain
+            chunks = []
+            start = 0
+            while start < len(text):
+                end = start + chunk_size
+                chunks.append(text[start:end])
+                start += chunk_size - chunk_overlap
+            return chunks or [text]
+
     def ingest_document(
         self,
         db: Session,
@@ -90,9 +120,7 @@ class HealthcareRAGService:
         doc_id = str(uuid.uuid4())
         extracted_text = self._extract_text(filename, content)
 
-        # Chunk text
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
-        chunks = text_splitter.split_text(extracted_text)
+        chunks = self._split_text(extracted_text)
 
         # Persist document metadata and text in SQLite
         med_doc = MedicalDocument(
@@ -106,22 +134,30 @@ class HealthcareRAGService:
         db.add(med_doc)
         db.commit()
 
-        # Save chunk text files organized by patient/doc for fast keyword indexing
-        patient_folder = os.path.join(self.vector_db_path, patient_id or "general")
-        os.makedirs(patient_folder, exist_ok=True)
-        chunk_file = os.path.join(patient_folder, f"{doc_id}.txt")
-        with open(chunk_file, "w", encoding="utf-8") as f:
-            f.write(extracted_text)
+        # Save chunk text files organized by patient/doc for fast indexing
+        try:
+            patient_folder = os.path.join(self.vector_db_path, patient_id or "general")
+            os.makedirs(patient_folder, exist_ok=True)
+            chunk_file = os.path.join(patient_folder, f"{doc_id}.txt")
+            with open(chunk_file, "w", encoding="utf-8") as f:
+                f.write(extracted_text)
+        except Exception as e:
+            logger.warning(f"Could not write chunk file: {e}")
 
-        # Add to FAISS index
-        if chunks:
-            metadatas = [{"patient_id": patient_id, "doc_id": doc_id, "title": filename, "doc_type": doc_type}] * len(chunks)
-            if os.path.exists(self.index_path):
-                vectorstore = FAISS.load_local(self.index_path, self.embeddings, allow_dangerous_deserialization=True)
-                vectorstore.add_texts(chunks, metadatas=metadatas)
-            else:
-                vectorstore = FAISS.from_texts(chunks, self.embeddings, metadatas=metadatas)
-            vectorstore.save_local(self.index_path)
+        # Add to FAISS index if embeddings & FAISS are available
+        embeddings = self._get_embeddings()
+        if chunks and embeddings is not None:
+            try:
+                from langchain_community.vectorstores import FAISS
+                metadatas = [{"patient_id": patient_id, "doc_id": doc_id, "title": filename, "doc_type": doc_type}] * len(chunks)
+                if os.path.exists(self.index_path):
+                    vectorstore = FAISS.load_local(self.index_path, embeddings, allow_dangerous_deserialization=True)
+                    vectorstore.add_texts(chunks, metadatas=metadatas)
+                else:
+                    vectorstore = FAISS.from_texts(chunks, embeddings, metadatas=metadatas)
+                vectorstore.save_local(self.index_path)
+            except Exception as e:
+                logger.warning(f"FAISS index update skipped/failed: {e}")
 
         preview = extracted_text[:200] + ("..." if len(extracted_text) > 200 else "")
         return UploadResponse(
@@ -155,40 +191,45 @@ class HealthcareRAGService:
                 patient_id=request.patient_id,
             )
 
-        # 2. Extract matching chunks across authorized docs using FAISS
+        # 2. Extract matching chunks across authorized docs using FAISS if available, else SQLite text
         relevant_chunks: List[str] = []
         sources: List[str] = []
-        
-        if os.path.exists(self.index_path):
-            vectorstore = FAISS.load_local(self.index_path, self.embeddings, allow_dangerous_deserialization=True)
-            filter_dict = {}
-            if request.patient_id:
-                filter_dict["patient_id"] = request.patient_id
-            if request.document_id:
-                filter_dict["doc_id"] = request.document_id
-                
-            search_kwargs = {"k": 4}
-            if filter_dict:
-                search_kwargs["filter"] = filter_dict
-                
-            retriever = vectorstore.as_retriever(search_kwargs=search_kwargs)
+
+        embeddings = self._get_embeddings()
+        if embeddings is not None and os.path.exists(self.index_path):
             try:
+                from langchain_community.vectorstores import FAISS
+                vectorstore = FAISS.load_local(self.index_path, embeddings, allow_dangerous_deserialization=True)
+                filter_dict = {}
+                if request.patient_id:
+                    filter_dict["patient_id"] = request.patient_id
+                if request.document_id:
+                    filter_dict["doc_id"] = request.document_id
+
+                search_kwargs = {"k": 4}
+                if filter_dict:
+                    search_kwargs["filter"] = filter_dict
+
+                retriever = vectorstore.as_retriever(search_kwargs=search_kwargs)
                 retrieved_docs = retriever.invoke(query_text)
                 for doc in retrieved_docs:
                     relevant_chunks.append(doc.page_content)
                     sources.append(f"{doc.metadata.get('title', 'Unknown')} ({doc.metadata.get('doc_type', 'report')})")
             except Exception as e:
                 logger.error(f"FAISS retrieve error: {e}")
-        
+
         if not relevant_chunks:
-            most_recent = docs[-1]
-            relevant_chunks = [most_recent.extracted_text[:400]]
-            sources.append(most_recent.title)
+            # Direct SQLite match extraction
+            for doc in docs:
+                if doc.extracted_text:
+                    relevant_chunks.append(doc.extracted_text[:400])
+                    sources.append(f"{doc.title} ({doc.doc_type})")
+                    if len(relevant_chunks) >= 3:
+                        break
 
         context = "\n\n".join(relevant_chunks[:4])
 
-        # 3. Generate AI response using provider service (Groq → Ollama fallback)
-        # IMPORTANT: The same context is passed to whichever provider responds.
+        # 3. Generate AI response using provider service
         system_with_context = f"{SYSTEM_PROMPT}\n\nContext from patient records:\n{context}"
         messages = ai_provider_service.build_messages(
             system_prompt=system_with_context,

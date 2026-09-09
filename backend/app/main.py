@@ -40,15 +40,25 @@ async def lifespan(app: FastAPI):
     """
     logger.info("MedIntel starting up — environment: %s", settings.env)
 
-    # Ensure required data directories exist
-    pathlib.Path("./data/local_db").mkdir(parents=True, exist_ok=True)
-    pathlib.Path("./data/vector_store").mkdir(parents=True, exist_ok=True)
-    pathlib.Path("./data/models").mkdir(parents=True, exist_ok=True)
-    pathlib.Path("./frontend").mkdir(parents=True, exist_ok=True)
+    # Ensure required data directories exist safely (Vercel is read-only except for /tmp)
+    data_dir = "/tmp/data" if os.environ.get("VERCEL") else "./data"
+    for path_str in [f"{data_dir}/local_db", f"{data_dir}/vector_store", f"{data_dir}/models"]:
+        try:
+            pathlib.Path(path_str).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Could not create directory {path_str}: {e}")
 
-    # Initialize all 19 database tables
-    init_db()
-    logger.info("Database initialised: all 19 relational tables ready.")
+    try:
+        pathlib.Path("./frontend").mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    # Initialize all database tables
+    try:
+        init_db()
+        logger.info("Database initialised ready.")
+    except Exception as e:
+        logger.error(f"Database initialization warning: {e}")
 
     yield
 
@@ -62,7 +72,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Middleware
+# CORS Middleware - allows localhost and all deployed HTTPS domains (e.g. Vercel)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -70,7 +80,10 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=r"https://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -109,14 +122,15 @@ app.include_router(system_router,        prefix="/api",                  tags=["
 
 # Backward-compatible liveness probe
 @app.get("/health", tags=["Health Check"])
+@app.get("/api/health", tags=["Health Check"])
 def health():
     return {"status": "healthy", "app": settings.app_name, "env": settings.env}
 
 
 # Static frontend mounting (compiled React SPA)
 frontend_dir = pathlib.Path("frontend")
-frontend_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory="frontend", check_dir=False), name="static")
+if frontend_dir.exists():
+    app.mount("/static", StaticFiles(directory="frontend", check_dir=False), name="static")
 
 
 # SPA catch-all (serves index.html for client-side routing)
@@ -131,3 +145,4 @@ def serve_spa(full_path: str):
         status_code=200,
         content={"message": "MedIntel Backend API running. Build frontend with 'npm run build' to serve UI statically."},
     )
+

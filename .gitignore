@@ -6,6 +6,9 @@ data/vector_store/*
 !data/vector_store/.gitkeep
 data/local_db/*
 !data/local_db/.gitkeep
+backend/data/*
+!backend/data/.gitkeep
+
 *.db
 *.h5
 *.gguf
