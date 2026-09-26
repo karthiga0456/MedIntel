@@ -47,10 +47,8 @@ def create_user(db: Session, user: UserCreate) -> User:
 def authenticate_user(db: Session, email: str, password: str):
     user = get_user_by_email(db, email)
     if not user:
-        if "@" in email:
-            role = "worker" if "worker" in email.lower() else "admin"
-            user = create_user(db, UserCreate(email=email, password=password or "defaultpass", role=role))
-            return user
+        return False
+    if not verify_password(password, user.hashed_password):
         return False
     return user
 

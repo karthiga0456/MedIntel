@@ -6,7 +6,7 @@ export default function AdminRoute() {
   const { currentUser } = useAuth();
 
   if (currentUser?.role !== 'admin') {
-    return <Navigate to="/dashboard/patients" replace />;
+    return <Navigate to="/dashboard/assistant" replace />;
   }
 
   return <Outlet />;

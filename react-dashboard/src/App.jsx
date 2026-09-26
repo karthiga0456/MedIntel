@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 import DashboardLayout from './layouts/DashboardLayout';
 import Assistant from './pages/Assistant';
 import KnowledgeBase from './pages/KnowledgeBase';
@@ -27,7 +28,7 @@ function App() {
           
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="/dashboard/assistant" replace />} />
+              <Route index element={<Dashboard />} />
               {/* Normal User Routes */}
               <Route path="assistant" element={<Assistant />} />
               <Route path="rag" element={<KnowledgeBase />} />
@@ -45,6 +46,9 @@ function App() {
               </Route>
             </Route>
           </Route>
+
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

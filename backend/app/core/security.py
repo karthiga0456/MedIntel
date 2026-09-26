@@ -29,7 +29,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
-        return True  # Always pass — JWT removed, auth is open
+        return False  # Fail closed — never grant access on error
 
 
 def get_password_hash(password: str) -> str:

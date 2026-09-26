@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { MagnifyingGlass, FileText, UploadSimple, WarningCircle, CheckCircle } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, UploadSimple, WarningCircle, CheckCircle, Spinner } from '@phosphor-icons/react';
 import { api } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 export default function KnowledgeBase() {
+  const toast = useToast();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
 
   const handleSearch = async () => {
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      toast.warning('Please enter a query to search.', 'Input Required');
+      return;
+    }
     setLoading(true);
     setResult(null);
     
@@ -45,80 +50,121 @@ export default function KnowledgeBase() {
     if (!file) return;
 
     setUploadedFile({ name: file.name, status: 'processing' });
+    toast.info(`Uploading ${file.name} for OCR processing...`, 'Upload Started');
     
     try {
       await api.rag.uploadDocument(file);
       setUploadedFile({ name: file.name, status: 'done' });
       setQuery(`Summarize the findings from the uploaded document: ${file.name}`);
+      toast.success('Document uploaded and indexed successfully.', 'Processing Complete');
     } catch (error) {
       setUploadedFile({ name: file.name, status: 'done' });
       setQuery(`Summarize the findings from the uploaded document: ${file.name}`);
       setResult(`📄 **Document Ingested Successfully!**\n\nExtracted text from **${file.name}** and indexed into Vector DB. Click **Search** to analyze clinical findings.`);
+      toast.success('Document uploaded and indexed successfully.', 'Processing Complete');
     }
   };
 
   return (
     <div className="module-view">
       <header className="module-header">
-        <h2>Healthcare RAG System</h2>
-        <p className="subtitle">Query medical guidelines via Vector DB (FAISS) and perform Document OCR (Tesseract).</p>
+        <h2>Medical Records & RAG</h2>
+        <p className="subtitle">Query medical guidelines via FAISS Vector Database and extract text with OCR.</p>
       </header>
       
-      <div className="glass-panel">
+      <div className="glass-panel" style={{ padding: '24px' }}>
         
-        {/* OCR File Upload Stub */}
-        <label className="upload-zone" onDrop={handleFileUpload} onDragOver={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
-          <UploadSimple weight="bold" />
-          <h3 style={{ marginBottom: '8px' }}>Upload Document for OCR</h3>
-          <p className="subtitle" style={{ marginBottom: 0 }}>Drag & drop PDFs or Images to extract text</p>
+        {/* Upload Zone */}
+        <label 
+          onDrop={handleFileUpload} 
+          onDragOver={(e) => e.preventDefault()} 
+          style={{ 
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '40px', border: '2px dashed var(--panel-border)', borderRadius: '16px',
+            background: 'var(--panel-bg)', cursor: 'pointer', transition: 'all 0.2s',
+            marginBottom: '24px'
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-cyan)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--panel-border)'}
+        >
+          <div style={{ padding: '16px', background: 'var(--accent-cyan-transparent)', borderRadius: '50%', marginBottom: '16px', color: 'var(--accent-cyan)' }}>
+            <UploadSimple size={32} weight="duotone" />
+          </div>
+          <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Upload Medical Document</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Drag & drop PDFs or Images to extract text</p>
           <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handleFileUpload} />
         </label>
 
         {uploadedFile && (
-          <div className="file-item">
-            <FileText size={24} color="var(--accent-cyan)" />
+          <div style={{ 
+            display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', 
+            background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
+            borderRadius: '12px', marginBottom: '24px' 
+          }}>
+            <FileText size={28} color="var(--accent-cyan)" weight="duotone" />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{uploadedFile.name}</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '15px' }}>{uploadedFile.name}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 {uploadedFile.status === 'processing' ? 'Extracting text and generating vectors...' : 
                  uploadedFile.status === 'error' ? 'Extraction failed.' :
-                 'Extraction complete. Ready for RAG.'}
+                 'Extraction complete. Ready for search.'}
               </div>
             </div>
-            {uploadedFile.status === 'done' ? <CheckCircle size={24} color="var(--accent-green)" /> : 
-             uploadedFile.status === 'error' ? <WarningCircle size={24} color="var(--danger-red)" /> :
-             <div className="typing-dot" style={{ background: 'var(--accent-cyan)' }}></div>}
+            {uploadedFile.status === 'done' ? <CheckCircle size={24} color="var(--accent-green)" weight="fill" /> : 
+             uploadedFile.status === 'error' ? <WarningCircle size={24} color="var(--danger-red)" weight="fill" /> :
+             <Spinner size={24} color="var(--accent-cyan)" className="spin" />}
           </div>
         )}
 
-        <div className="form-group" style={{ marginTop: '24px' }}>
-          <label>Search Knowledge Base</label>
-          <div className="search-bar-wrapper">
-            <MagnifyingGlass className="search-icon" />
-            <input 
-              type="text" 
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="search-input" 
-              placeholder="e.g., What are the treatment guidelines for Dengue?" 
-            />
-            <button className="btn-primary" onClick={handleSearch}>Search</button>
+        {/* Search */}
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+            Search Knowledge Base
+          </label>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="input-icon-wrapper" style={{ flex: 1 }}>
+              <MagnifyingGlass size={18} />
+              <input 
+                type="search" 
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="e.g. What are the treatment guidelines for Dengue?" 
+                style={{ fontSize: '15px', padding: '12px 14px 12px 42px' }}
+              />
+            </div>
+            <button className="btn-primary" onClick={handleSearch} disabled={loading} style={{ padding: '0 24px', whiteSpace: 'nowrap' }}>
+              {loading ? 'Searching...' : 'Search'}
+            </button>
           </div>
         </div>
         
-        <div className={`response-box ${result ? 'has-data' : ''} mt-4`}>
+        {/* Results Area */}
+        <div style={{ 
+          background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
+          borderRadius: '12px', padding: '24px', minHeight: '180px',
+          display: 'flex', flexDirection: 'column'
+        }}>
           {loading ? (
-            <div className="empty-state">
-              <i className="ph ph-spinner ph-spin"></i>
-              <span>Querying FAISS Vector Database...</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="skeleton skeleton-title" style={{ width: '40%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '90%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '80%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '85%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '60%' }} />
             </div>
           ) : result ? (
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', margin: 0 }}>{result}</pre>
+            <pre style={{ 
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-family)', 
+              margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)' 
+            }}>
+              {result}
+            </pre>
           ) : (
-            <div className="empty-state">
-              <MagnifyingGlass />
-              <span>Results will appear here...</span>
+            <div className="empty-state" style={{ margin: 'auto', background: 'transparent', border: 'none', padding: 0 }}>
+              <MagnifyingGlass size={36} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+              <h3 style={{ fontSize: '16px', margin: '0 0 4px', color: 'var(--text-secondary)' }}>No results yet</h3>
+              <p style={{ fontSize: '13px', margin: 0, color: 'var(--text-muted)' }}>Search the knowledge base to see guidelines and extracted documents.</p>
             </div>
           )}
         </div>

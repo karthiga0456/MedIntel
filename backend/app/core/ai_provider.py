@@ -50,8 +50,8 @@ class GroqProvider:
     """
 
     FALLBACK_MODELS = [
-        "openai/gpt-oss-120b",
-        "qwen/qwen3.8-27b",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
     ]
 
     def __init__(self):
@@ -208,7 +208,7 @@ class AIProviderService:
         Returns the response text string.
         Raises AIProviderError only for programming errors; all provider issues return friendly message.
         """
-        provider_pref = settings.ai_provider.lower()
+        provider_pref = settings.ai_provider.lower()  # noqa: F841 — reserved for future multi-provider routing
 
         try:
             result = self._groq.generate(messages, temperature, max_tokens)

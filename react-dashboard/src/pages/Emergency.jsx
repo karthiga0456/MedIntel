@@ -1,25 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Siren, 
-  Warning, 
-  CheckCircle, 
-  Clock, 
-  UserPlus, 
-  MapPin, 
-  PhoneCall, 
-  PlusCircle, 
-  X,
-  Funnel,
-  FirstAid
+  Siren, Warning, CheckCircle, Clock, 
+  MapPin, PlusCircle, X, Funnel, FirstAid
 } from '@phosphor-icons/react';
 import { api } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
+
+function QueueSkeleton() {
+  return (
+    <tr>
+      <td colSpan="6" style={{ padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="skeleton" style={{ width: '80px', height: '24px', borderRadius: '12px' }} />
+          <div className="skeleton skeleton-title" style={{ width: '150px' }} />
+          <div className="skeleton skeleton-text" style={{ flex: 1 }} />
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 export default function Emergency() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
@@ -32,31 +38,22 @@ export default function Emergency() {
   const [dispatchWorkerId, setDispatchWorkerId] = useState('');
 
   const [formData, setFormData] = useState({
-    patient_name: '',
-    patient_id: '',
-    symptoms: '',
-    severity: 'CRITICAL',
-    location: '',
-    notes: ''
+    patient_name: '', patient_id: '', symptoms: '', severity: 'CRITICAL', location: '', notes: ''
   });
 
   const loadQueue = async () => {
     try {
       setLoading(true);
-      setError(null);
       const res = await api.emergency.getQueue(filterStatus || null, filterSeverity || null);
       setCases(res || []);
     } catch (err) {
-      console.error('Failed to load emergency queue:', err);
-      setError(err.message || 'Error fetching emergency queue');
+      toast.error('Failed to fetch emergency queue.', 'Data Error');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadQueue();
-  }, [filterStatus, filterSeverity]);
+  useEffect(() => { loadQueue(); }, [filterStatus, filterSeverity]);
 
   const handleCreateCase = async (e) => {
     e.preventDefault();
@@ -71,17 +68,11 @@ export default function Emergency() {
         notes: formData.notes.trim() || undefined
       });
       setShowModal(false);
-      setFormData({
-        patient_name: '',
-        patient_id: '',
-        symptoms: '',
-        severity: 'CRITICAL',
-        location: '',
-        notes: ''
-      });
+      setFormData({ patient_name: '', patient_id: '', symptoms: '', severity: 'CRITICAL', location: '', notes: '' });
+      toast.success('Emergency incident reported successfully.', 'Dispatched');
       await loadQueue();
     } catch (err) {
-      alert(`Failed to report emergency: ${err.message}`);
+      toast.error(`Failed to report emergency: ${err.message}`, 'Action Failed');
     } finally {
       setSubmitting(false);
     }
@@ -94,186 +85,98 @@ export default function Emergency() {
         assigned_worker_id: assignedWorker || undefined
       });
       setSelectedCase(null);
+      toast.success(`Case updated to ${status}.`, 'Status Updated');
       await loadQueue();
     } catch (err) {
-      alert(`Failed to update emergency case: ${err.message}`);
+      toast.error(`Failed to update case: ${err.message}`);
     }
   };
 
   const getSeverityBadge = (severity) => {
     switch (severity?.toUpperCase()) {
       case 'CRITICAL':
-        return (
-          <span className="badge" style={{ 
-            backgroundColor: 'rgba(239, 68, 68, 0.25)', 
-            color: '#f87171', 
-            border: '1px solid rgba(239,68,68,0.5)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px'
-          }}>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite' }}></span>
-            CRITICAL
-          </span>
-        );
-      case 'HIGH':
-        return (
-          <span className="badge" style={{ backgroundColor: 'rgba(249, 115, 22, 0.2)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.4)' }}>
-            HIGH
-          </span>
-        );
-      case 'MEDIUM':
-        return (
-          <span className="badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.4)' }}>
-            MEDIUM
-          </span>
-        );
-      default:
-        return (
-          <span className="badge" style={{ backgroundColor: 'rgba(6, 182, 212, 0.2)', color: '#38bdf8' }}>
-            LOW
-          </span>
-        );
+        return <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', gap: '6px', alignItems: 'center' }}><span className="dot pulse" style={{ backgroundColor: '#ef4444' }} />CRITICAL</span>;
+      case 'HIGH': return <span className="badge" style={{ backgroundColor: 'rgba(249, 115, 22, 0.15)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.3)' }}>HIGH</span>;
+      case 'MEDIUM': return <span className="badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>MEDIUM</span>;
+      default: return <span className="badge badge-primary">LOW</span>;
     }
   };
 
   const getStatusBadge = (status) => {
     switch (status?.toUpperCase()) {
-      case 'PENDING':
-        return <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5' }}>PENDING DISPATCH</span>;
-      case 'DISPATCHED':
-        return <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd' }}>RESPONDER DISPATCHED</span>;
-      case 'RESOLVED':
-        return <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>RESOLVED</span>;
-      case 'ESCALATED':
-        return <span className="badge" style={{ backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#d8b4fe' }}>ESCALATED TO ICU</span>;
-      default:
-        return <span className="badge">{status}</span>;
+      case 'PENDING': return <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5' }}>PENDING DISPATCH</span>;
+      case 'DISPATCHED': return <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd' }}>RESPONDER DISPATCHED</span>;
+      case 'RESOLVED': return <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#6ee7b7' }}>RESOLVED</span>;
+      case 'ESCALATED': return <span className="badge" style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe' }}>ESCALATED</span>;
+      default: return <span className="badge">{status}</span>;
     }
   };
 
-  // Stats calculation
-  const totalCount = cases.length;
-  const criticalCount = cases.filter(c => c.severity === 'CRITICAL').length;
-  const pendingCount = cases.filter(c => c.status === 'PENDING').length;
-  const resolvedCount = cases.filter(c => c.status === 'RESOLVED').length;
+  const stats = {
+    total: cases.length,
+    critical: cases.filter(c => c.severity === 'CRITICAL').length,
+    pending: cases.filter(c => c.status === 'PENDING').length,
+    resolved: cases.filter(c => c.status === 'RESOLVED').length
+  };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              borderRadius: '10px', 
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)'
-            }}>
-              <Siren size={24} weight="bold" color="#fff" />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>Emergency Rapid Response Triage</h1>
-              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
-                High-priority incident queue, worker field dispatching, and hospital transfer tracking
-              </p>
-            </div>
+    <div className="module-view">
+      <header className="module-header" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.2) 0%, rgba(220,38,38,0.1) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)'
+          }}>
+            <Siren size={26} weight="duotone" color="#ef4444" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '22px' }}>Emergency Triage</h2>
+            <p className="subtitle">High-priority incident queue and field dispatching</p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button 
-            onClick={() => navigate('/dashboard/nearby-hospitals')}
-            className="btn-secondary" 
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderColor: '#3b82f6', color: '#3b82f6' }}
-          >
-            <FirstAid size={18} weight="bold" />
-            Find Nearby Hospitals
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={() => navigate('/dashboard/nearby-hospitals')} className="btn-secondary" style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}>
+            <FirstAid size={16} /> Nearby Hospitals
           </button>
-          <button 
-            onClick={() => setShowModal(true)}
-            className="btn-primary" 
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-          >
-            <PlusCircle size={18} weight="bold" />
-            Log Emergency Case
+          <button onClick={() => setShowModal(true)} className="btn-primary" style={{ backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' }}>
+            <PlusCircle size={16} /> Log Emergency
           </button>
+        </div>
+      </header>
+
+      {/* KPIs */}
+      <div className="grid-kpi">
+        <div className="stat-card" style={{ '--stat-accent': 'var(--text-secondary)' }}>
+          <div className="stat-label">ACTIVE EMERGENCIES</div>
+          {loading ? <div className="skeleton skeleton-text lg" style={{ width: '40px', marginTop: '4px' }} /> : <div className="stat-value">{stats.total}</div>}
+        </div>
+        <div className="stat-card" style={{ '--stat-accent': '#ef4444' }}>
+          <div className="stat-label">CRITICAL SEVERITY</div>
+          {loading ? <div className="skeleton skeleton-text lg" style={{ width: '40px', marginTop: '4px' }} /> : <div className="stat-value" style={{ color: '#f87171' }}>{stats.critical}</div>}
+        </div>
+        <div className="stat-card" style={{ '--stat-accent': '#f59e0b' }}>
+          <div className="stat-label">PENDING DISPATCH</div>
+          {loading ? <div className="skeleton skeleton-text lg" style={{ width: '40px', marginTop: '4px' }} /> : <div className="stat-value" style={{ color: '#fbbf24' }}>{stats.pending}</div>}
+        </div>
+        <div className="stat-card" style={{ '--stat-accent': '#10b981' }}>
+          <div className="stat-label">RESOLVED TODAY</div>
+          {loading ? <div className="skeleton skeleton-text lg" style={{ width: '40px', marginTop: '4px' }} /> : <div className="stat-value" style={{ color: '#34d399' }}>{stats.resolved}</div>}
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div className="card glass" style={{ padding: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            <span>ACTIVE EMERGENCIES</span>
-            <Warning size={20} color="#ef4444" />
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>
-            {loading ? '...' : totalCount}
-          </div>
-        </div>
-
-        <div className="card glass" style={{ padding: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            <span>CRITICAL SEVERITY</span>
-            <Siren size={20} color="#ef4444" />
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 700, color: '#f87171', marginTop: '6px' }}>
-            {loading ? '...' : criticalCount}
-          </div>
-        </div>
-
-        <div className="card glass" style={{ padding: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            <span>PENDING DISPATCH</span>
-            <Clock size={20} color="#f59e0b" />
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 700, color: '#fbbf24', marginTop: '6px' }}>
-            {loading ? '...' : pendingCount}
-          </div>
-        </div>
-
-        <div className="card glass" style={{ padding: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            <span>RESOLVED TODAY</span>
-            <CheckCircle size={20} color="#10b981" />
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 700, color: '#34d399', marginTop: '6px' }}>
-            {loading ? '...' : resolvedCount}
-          </div>
-        </div>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="card glass" style={{ padding: '16px', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
-          <Funnel size={16} />
-          <span>Filter Queue:</span>
-        </div>
-
-        <select 
-          className="input-field" 
-          value={filterStatus} 
-          onChange={(e) => setFilterStatus(e.target.value)}
-          style={{ width: '180px', padding: '6px 12px', fontSize: '13px' }}
-        >
+      {/* Filters */}
+      <div className="glass-panel" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <Funnel size={16} color="var(--text-muted)" />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">All Statuses</option>
           <option value="PENDING">Pending Dispatch</option>
           <option value="DISPATCHED">Dispatched</option>
           <option value="RESOLVED">Resolved</option>
-          <option value="ESCALATED">Escalated</option>
         </select>
-
-        <select 
-          className="input-field" 
-          value={filterSeverity} 
-          onChange={(e) => setFilterSeverity(e.target.value)}
-          style={{ width: '180px', padding: '6px 12px', fontSize: '13px' }}
-        >
+        <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}>
           <option value="">All Severities</option>
           <option value="CRITICAL">Critical Only</option>
           <option value="HIGH">High</option>
@@ -281,88 +184,68 @@ export default function Emergency() {
         </select>
       </div>
 
-      {/* Triage Queue Table */}
-      <div className="card glass" style={{ padding: '20px' }}>
+      {/* Table */}
+      <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)' }}>
-                <th style={{ padding: '12px 16px' }}>SEVERITY</th>
-                <th style={{ padding: '12px 16px' }}>PATIENT / COMPLAINT</th>
-                <th style={{ padding: '12px 16px' }}>LOCATION</th>
-                <th style={{ padding: '12px 16px' }}>REPORTED AT</th>
-                <th style={{ padding: '12px 16px' }}>DISPATCH STATUS</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
+              <tr style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-muted)' }}>
+                <th style={{ padding: '14px 16px', fontWeight: 600 }}>SEVERITY</th>
+                <th style={{ padding: '14px 16px', fontWeight: 600 }}>PATIENT / COMPLAINT</th>
+                <th style={{ padding: '14px 16px', fontWeight: 600 }}>LOCATION</th>
+                <th style={{ padding: '14px 16px', fontWeight: 600 }}>TIME</th>
+                <th style={{ padding: '14px 16px', fontWeight: 600 }}>STATUS</th>
+                <th style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                    Loading emergency triage queue...
-                  </td>
-                </tr>
+                <>
+                  <QueueSkeleton />
+                  <QueueSkeleton />
+                  <QueueSkeleton />
+                </>
               ) : cases.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                    No emergency cases in this queue view.
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    <Siren size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                    <br />No emergency cases in this queue view.
                   </td>
                 </tr>
               ) : (
-                cases.map((c) => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      {getSeverityBadge(c.severity)}
+                cases.map(c => (
+                  <tr key={c.id} style={{ borderTop: '1px solid var(--panel-border)' }}>
+                    <td style={{ padding: '14px 16px' }}>{getSeverityBadge(c.severity)}</td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{c.patient_name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.symptoms}</div>
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ fontWeight: 600, color: '#f8fafc' }}>{c.patient_name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {c.symptoms}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+                        <MapPin size={14} color="var(--accent-cyan)" /> {c.location}
                       </div>
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
-                        <MapPin size={16} color="#06b6d4" />
-                        <span>{c.location}</span>
-                      </div>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                      {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                      {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
+                    <td style={{ padding: '14px 16px' }}>
                       {getStatusBadge(c.status)}
-                      {c.assigned_worker_id && (
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                          Worker: {c.assigned_worker_id}
-                        </div>
-                      )}
+                      {c.assigned_worker_id && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Worker: {c.assigned_worker_id}</div>}
                     </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         {c.status === 'PENDING' && (
-                          <button 
-                            onClick={() => { setSelectedCase(c); setDispatchWorkerId('worker-field-1'); }}
-                            className="btn-primary" 
-                            style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#3b82f6', borderColor: '#3b82f6' }}
-                          >
+                          <button onClick={() => { setSelectedCase(c); setDispatchWorkerId('Unit 1 - Priority Response'); }} className="btn-primary btn-sm">
                             Dispatch
                           </button>
                         )}
                         {c.status === 'DISPATCHED' && (
-                          <button 
-                            onClick={() => handleUpdateStatus(c.id, 'RESOLVED')}
-                            className="btn-secondary" 
-                            style={{ fontSize: '11px', padding: '5px 10px', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }}
-                          >
+                          <button onClick={() => handleUpdateStatus(c.id, 'RESOLVED')} className="btn-secondary btn-sm" style={{ color: 'var(--accent-green)', borderColor: 'rgba(16,185,129,0.3)' }}>
                             Mark Resolved
                           </button>
                         )}
                         {c.status !== 'RESOLVED' && (
-                          <button 
-                            onClick={() => handleUpdateStatus(c.id, 'ESCALATED')}
-                            className="btn-secondary" 
-                            style={{ fontSize: '11px', padding: '5px 10px', color: '#f87171' }}
-                          >
+                          <button onClick={() => handleUpdateStatus(c.id, 'ESCALATED')} className="btn-secondary btn-sm" style={{ color: '#f87171', borderColor: 'transparent', padding: '4px 8px' }}>
                             Escalate
                           </button>
                         )}
@@ -376,62 +259,35 @@ export default function Emergency() {
         </div>
       </div>
 
-      {/* Modal: Dispatch Worker */}
+      {/* Dispatch Modal */}
       {selectedCase && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(6px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div className="glass card" style={{ maxWidth: '420px', width: '100%', padding: '24px' }}>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '12px' }}>
-              Dispatch Emergency First Responder
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Assign field health worker or 108 ambulance unit to <strong>{selectedCase.patient_name}</strong> at <strong>{selectedCase.location}</strong>.
-            </p>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                ASSIGNED FIELD WORKER / UNIT
-              </label>
-              <input 
-                type="text"
-                list="worker-list"
-                className="input-field" 
-                value={dispatchWorkerId} 
-                onChange={(e) => setDispatchWorkerId(e.target.value)}
-                placeholder="Select or type a custom worker name..."
-              />
-              <datalist id="worker-list">
-                <option value="Unit 1 - Priya Sharma (Rapid Response)" />
-                <option value="Unit 2 - Rajesh Kumar (ASHA Lead)" />
-                <option value="108 Emergency Ambulance Unit (GVK EMRI)" />
-              </datalist>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSelectedCase(null); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3 className="modal-title">Dispatch First Responder</h3>
+              <button className="modal-close" onClick={() => setSelectedCase(null)}><X size={16} /></button>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button 
-                type="button" 
-                onClick={() => setSelectedCase(null)} 
-                className="btn-secondary"
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleUpdateStatus(selectedCase.id, 'DISPATCHED', dispatchWorkerId)}
-                className="btn-primary"
-              >
+            <div style={{ padding: '16px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Assign field worker or ambulance to <strong>{selectedCase.patient_name}</strong> at <strong>{selectedCase.location}</strong>.
+              </p>
+              <div className="form-group">
+                <label>Assigned Unit</label>
+                <input 
+                  type="text" list="worker-list" value={dispatchWorkerId} 
+                  onChange={e => setDispatchWorkerId(e.target.value)}
+                  placeholder="Select or type unit name..."
+                />
+                <datalist id="worker-list">
+                  <option value="Unit 1 - Priority Response" />
+                  <option value="Unit 2 - ASHA Lead" />
+                  <option value="108 Emergency Ambulance" />
+                </datalist>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setSelectedCase(null)}>Cancel</button>
+              <button className="btn-primary" onClick={() => handleUpdateStatus(selectedCase.id, 'DISPATCHED', dispatchWorkerId)}>
                 Confirm Dispatch
               </button>
             </div>
@@ -439,112 +295,42 @@ export default function Emergency() {
         </div>
       )}
 
-      {/* Modal: Create Emergency Case */}
+      {/* Create Modal */}
       {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(6px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div className="glass card" style={{ maxWidth: '500px', width: '100%', padding: '28px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171' }}>
-                <Siren size={22} weight="bold" />
-                Report Emergency Incident
-              </h2>
-              <button 
-                onClick={() => setShowModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
+          <div className="modal" style={{ border: '1px solid rgba(239,68,68,0.3)' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: '#f87171', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Siren size={18} /> Report Emergency
+              </h3>
+              <button className="modal-close" onClick={() => setShowModal(false)}><X size={16} /></button>
             </div>
-
-            <form onSubmit={handleCreateCase} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  PATIENT NAME *
-                </label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="e.g. Ramesh Kumar"
-                  value={formData.patient_name} 
-                  onChange={(e) => setFormData({ ...formData, patient_name: e.target.value })}
-                  required
-                />
+            <form onSubmit={handleCreateCase} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Patient Name *</label>
+                <input type="text" required placeholder="e.g. Ramesh Kumar" value={formData.patient_name} onChange={e => setFormData({...formData, patient_name: e.target.value})} />
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    SEVERITY LEVEL *
-                  </label>
-                  <select 
-                    className="input-field"
-                    value={formData.severity}
-                    onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                    required
-                  >
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Severity Level *</label>
+                  <select value={formData.severity} onChange={e => setFormData({...formData, severity: e.target.value})}>
                     <option value="CRITICAL">CRITICAL (Life-Threatening)</option>
                     <option value="HIGH">HIGH (Urgent Care)</option>
                     <option value="MEDIUM">MEDIUM (Intermediate)</option>
                   </select>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    LOCATION / VILLAGE *
-                  </label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. Alandurai Ward 4"
-                    value={formData.location} 
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    required
-                  />
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Location / Village *</label>
+                  <input type="text" required placeholder="e.g. Ward 4" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
                 </div>
               </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  PRESENTING SYMPTOMS *
-                </label>
-                <textarea 
-                  rows="3" 
-                  className="input-field" 
-                  placeholder="Severe respiratory distress, chest tightness, unconsciousness..."
-                  value={formData.symptoms} 
-                  onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
-                  required
-                  style={{ resize: 'none' }}
-                />
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Symptoms *</label>
+                <textarea rows="3" required placeholder="Severe distress, unconsciousness..." value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})} />
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="btn-secondary"
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-primary"
-                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-                  disabled={submitting}
-                >
+              <div className="modal-footer" style={{ marginTop: '8px' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)} disabled={submitting}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }} disabled={submitting}>
                   {submitting ? 'Triggering Alarm...' : 'Transmit Emergency'}
                 </button>
               </div>

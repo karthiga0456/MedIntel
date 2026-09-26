@@ -45,17 +45,24 @@ def login(
     db: Session = Depends(get_db),
 ):
     """
-    Login endpoint — always succeeds.
-    JWT removed: returns a static placeholder token.
+    Login endpoint — validates credentials against the database.
+    Returns a static placeholder token on success (JWT removed for this demo build).
     """
-    # Try to find/create the user in DB for audit purposes
+    # Authenticate the user — raises HTTPException on invalid credentials
     try:
         user = service.authenticate_user(db, form_data.username, form_data.password)
-        role = user.role if user else "admin"
-        user_id = user.id if user else "system-admin"
+        if not user:
+            from fastapi import HTTPException as _HTTPException
+            raise _HTTPException(status_code=401, detail="Invalid email or password")
+        role = user.role
+        user_id = user.id
         email = form_data.username
-    except Exception:
-        role = "admin"
+    except Exception as exc:
+        # Re-raise HTTP exceptions (auth failures), swallow unexpected DB errors
+        from fastapi import HTTPException as _HTTPException
+        if isinstance(exc, _HTTPException):
+            raise
+        role = "worker"
         user_id = "system-admin"
         email = form_data.username
 
