@@ -175,7 +175,7 @@ export default function DashboardLayout() {
               {currentUser?.email || 'User'}
             </div>
             <span className={'user-role-badge ' + (isAdmin ? 'admin' : 'worker')}>
-              {isAdmin ? 'System Admin' : 'Staff'}
+              {isAdmin ? 'System Admin' : 'Patient / Public'}
             </span>
           </div>
         </div>
