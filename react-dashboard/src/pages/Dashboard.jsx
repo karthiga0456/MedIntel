@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Bell, Pill, Robot, Siren, MapPin,
   ArrowRight, TrendUp, CheckCircle, Warning,
+  ChartPieSlice, ShieldCheck
 } from '@phosphor-icons/react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +13,7 @@ function StatCard({ label, value, accent, icon: Icon, trend, trendLabel, loading
     <div className="stat-card" style={{ '--stat-accent': accent }}>
       {Icon && (
         <div className="stat-icon">
-          <Icon size={48} weight="fill" color={accent} />
+          <Icon size={48} weight="fill" />
         </div>
       )}
       <div className="stat-label">{label}</div>
@@ -22,8 +23,9 @@ function StatCard({ label, value, accent, icon: Icon, trend, trendLabel, loading
         <div className="stat-value">{value}</div>
       )}
       {trendLabel && (
-        <div className={'stat-trend ' + (trend || 'neutral')} style={{ marginTop: '4px' }}>
-          {trend === 'up' && <TrendUp size={13} weight="bold" />}
+        <div className={'stat-trend ' + (trend || 'neutral')} style={{ marginTop: '8px' }}>
+          {trend === 'up' && <TrendUp size={14} weight="bold" />}
+          {trend === 'down' && <TrendUp size={14} weight="bold" style={{ transform: 'rotate(180deg)' }} />}
           <span>{trendLabel}</span>
         </div>
       )}
@@ -33,9 +35,9 @@ function StatCard({ label, value, accent, icon: Icon, trend, trendLabel, loading
 
 const QUICK_ACTIONS = [
   { label: 'AI Health Assistant', desc: 'Ask medical questions, get health info', to: '/dashboard/assistant', icon: Robot, color: 'var(--accent-cyan)' },
-  { label: 'Drug Interaction Check', desc: 'Check medicine safety and interactions', to: '/dashboard/medicines', icon: Pill, color: '#a78bfa' },
-  { label: 'Find Nearby Hospitals', desc: 'Locate clinics and pharmacies near you', to: '/dashboard/nearby-hospitals', icon: MapPin, color: '#34d399' },
-  { label: 'Notification Broadcasts', desc: 'System alerts and health advisories', to: '/dashboard/notifications', icon: Bell, color: '#fbbf24' },
+  { label: 'Drug Interaction Check', desc: 'Check medicine safety and interactions', to: '/dashboard/medicines', icon: Pill, color: 'var(--accent-violet)' },
+  { label: 'Find Nearby Hospitals', desc: 'Locate clinics and pharmacies near you', to: '/dashboard/nearby-hospitals', icon: MapPin, color: 'var(--success-green)' },
+  { label: 'Notification Broadcasts', desc: 'System alerts and health advisories', to: '/dashboard/notifications', icon: Bell, color: 'var(--warning-yellow)' },
 ];
 
 export default function Dashboard() {
@@ -68,32 +70,63 @@ export default function Dashboard() {
   }, [isAdmin]);
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const userName = currentUser?.email?.split('@')[0] || 'User';
+  const greeting = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+  const userName = currentUser?.email?.split('@')[0].toUpperCase() || 'USER';
 
   return (
     <div className="module-view">
-      {/* Welcome header */}
-      <div className="glass-panel" style={{ padding: '24px 28px', background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(139,92,246,0.08) 100%)', borderColor: 'rgba(59,130,246,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '4px' }}>
-              {greeting}, {userName} 👋
-            </h2>
-            <p className="subtitle">
-              Welcome to MedIntel — your intelligent public health command centre.
-            </p>
+      {/* Cyber Hero Section */}
+      <div className="glass-panel" style={{ 
+        padding: '60px 40px', 
+        backgroundImage: `linear-gradient(90deg, rgba(5,7,13,0.95) 0%, rgba(13,17,28,0.7) 60%, rgba(0,240,255,0.1) 100%), url('/medical_ai.jpg')`, 
+        backgroundSize: 'cover',
+        backgroundPosition: 'center right',
+        borderColor: 'rgba(0,240,255,0.3)',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 0 40px rgba(0,240,255,0.15)'
+      }}>
+        {/* Subtle animated visual element */}
+        <div style={{ position: 'absolute', top: '10%', right: '2%', opacity: 0.2, pointerEvents: 'none', animation: 'spin 20s linear infinite' }}>
+          <Robot size={320} color="rgba(0,240,255,0.2)" weight="thin" />
+        </div>
+        
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: '600px' }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)', letterSpacing: '2px', fontFamily: 'var(--font-heading)', marginBottom: '8px' }}>
+            {greeting}, {userName}
+          </h2>
+          <h1 style={{ fontSize: '42px', fontWeight: 700, color: '#fff', letterSpacing: '1px', fontFamily: 'var(--font-heading)', marginBottom: '16px', lineHeight: 1.1 }}>
+            NEXUS COMMAND CENTER
+          </h1>
+          <p className="subtitle" style={{ fontSize: '16px', maxWidth: '480px', marginBottom: '24px', letterSpacing: '0.5px' }}>
+            Your AI-powered intelligence platform is running at optimal capacity. All systems are currently operational and monitoring data streams.
+          </p>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+            <span className="dot pulse" style={{ backgroundColor: 'var(--success-green)', width: '10px', height: '10px' }} />
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--success-green)', letterSpacing: '1.5px', fontFamily: 'var(--font-heading)', textTransform: 'uppercase' }}>ALL SYSTEMS OPERATIONAL</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '7px',
-              padding: '7px 14px', borderRadius: 'var(--radius-full)',
-              background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
-              fontSize: '13px', fontWeight: 600, color: '#34d399',
-            }}>
-              <CheckCircle size={14} weight="fill" />
-              All Systems Operational
-            </div>
+
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {isAdmin ? (
+              <>
+                <button className="btn-primary" onClick={() => navigate('/dashboard/analytics')}>
+                  <ChartPieSlice weight="bold" size={18} /> View Analytics
+                </button>
+                <button className="btn-secondary" onClick={() => navigate('/dashboard/patients')}>
+                  Explore Data
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn-primary" onClick={() => navigate('/dashboard/assistant')}>
+                  <Robot weight="bold" size={18} /> Launch AI Assistant
+                </button>
+                <button className="btn-secondary" onClick={() => navigate('/dashboard/medicines')}>
+                  Explore Formulary
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -102,110 +135,85 @@ export default function Dashboard() {
       <div className="grid-kpi">
         {isAdmin && (
           <StatCard
-            label="Total Patients"
+            label="Registry Size"
             value={stats.patients !== null ? stats.patients.toLocaleString() : '—'}
             accent="var(--accent-cyan)"
             icon={Users}
             loading={loadingStats}
-            trendLabel="In registry"
+            trendLabel="Targeting stability"
             trend="neutral"
           />
         )}
         <StatCard
-          label="Unread Alerts"
+          label="Active Alerts"
           value={stats.notifications !== null ? stats.notifications : '—'}
-          accent={stats.notifications > 0 ? 'var(--danger-red)' : 'var(--accent-green)'}
+          accent={stats.notifications > 0 ? 'var(--danger-red)' : 'var(--success-green)'}
           icon={Bell}
           loading={loadingStats}
-          trendLabel={stats.notifications > 0 ? 'Needs attention' : 'All clear'}
+          trendLabel={stats.notifications > 0 ? 'Priority review' : 'Systems nominal'}
           trend={stats.notifications > 0 ? 'down' : 'up'}
         />
         <StatCard
-          label="AI Provider"
-          value="Groq"
-          accent="var(--accent-purple)"
+          label="Neural Core"
+          value="Online"
+          accent="var(--accent-violet)"
           icon={Robot}
           loading={false}
-          trendLabel="llama3-70b-8192"
+          trendLabel="LLaMA3-70b Active"
           trend="neutral"
         />
         <StatCard
-          label="System Mode"
-          value={isAdmin ? 'Admin' : 'Staff'}
-          accent="var(--accent-yellow)"
-          icon={isAdmin ? Siren : CheckCircle}
+          label="Clearance"
+          value={isAdmin ? 'Lvl-5' : 'Lvl-1'}
+          accent="var(--warning-yellow)"
+          icon={isAdmin ? ShieldCheck : CheckCircle}
           loading={false}
-          trendLabel={isAdmin ? 'Full access' : 'Core modules'}
+          trendLabel={isAdmin ? 'Full access granted' : 'Standard protocols'}
           trend="neutral"
         />
       </div>
 
       {/* Quick Actions */}
       <div>
-        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '14px', color: 'var(--text-secondary)' }}>
-          Quick Actions
+        <h3 style={{ fontSize: '12px', fontWeight: 700, marginBottom: '16px', color: 'var(--accent-cyan)', fontFamily: 'var(--font-heading)', letterSpacing: '2px', textTransform: 'uppercase' }}>
+          Available Modules
         </h3>
         <div className="grid-2">
           {QUICK_ACTIONS.map(action => (
             <div
               key={action.to}
               className="glass-panel card-interactive"
-              style={{ padding: '18px 20px', cursor: 'pointer' }}
+              style={{ padding: '20px 24px', cursor: 'pointer', borderLeft: '3px solid ' + action.color }}
               onClick={() => navigate(action.to)}
               role="button"
               tabIndex={0}
               onKeyDown={e => e.key === 'Enter' && navigate(action.to)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div style={{
-                  width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
-                  background: action.color + '18',
-                  border: '1px solid ' + action.color + '30',
+                  width: '46px', height: '46px', borderRadius: '4px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid ' + action.color,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
+                  boxShadow: 'inset 0 0 10px ' + action.color + '40'
                 }}>
-                  <action.icon size={20} color={action.color} weight="duotone" />
+                  <action.icon size={22} color={action.color} weight="duotone" />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text-primary)', marginBottom: '2px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '4px', fontFamily: 'var(--font-heading)', letterSpacing: '0.5px' }}>
                     {action.label}
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {action.desc}
                   </div>
                 </div>
-                <ArrowRight size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                <ArrowRight size={18} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Admin shortcuts */}
-      {isAdmin && (
-        <div className="glass-panel" style={{ padding: '20px 24px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '14px', color: 'var(--text-secondary)' }}>
-            Administration
-          </h3>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Patient Registry', to: '/dashboard/patients', color: 'var(--accent-cyan)' },
-              { label: 'Emergency Triage', to: '/dashboard/emergency', color: 'var(--danger-red)' },
-              { label: 'Reports & Analytics', to: '/dashboard/analytics', color: 'var(--accent-green)' },
-              { label: 'Admin Panel', to: '/dashboard/admin', color: 'var(--accent-yellow)' },
-            ].map(item => (
-              <button
-                key={item.to}
-                className="btn-secondary btn-sm"
-                onClick={() => navigate(item.to)}
-                style={{ borderColor: item.color + '30', color: item.color }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

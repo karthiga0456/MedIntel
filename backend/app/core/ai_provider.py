@@ -50,8 +50,8 @@ class GroqProvider:
     """
 
     FALLBACK_MODELS = [
-        "llama3-8b-8192",
-        "mixtral-8x7b-32768",
+        "qwen/qwen3.8-27b",
+        "openai/gpt-oss-120b",
     ]
 
     def __init__(self):

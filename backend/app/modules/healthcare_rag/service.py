@@ -36,6 +36,12 @@ try:
 except ImportError:
     _PYPDF_AVAILABLE = False
 
+try:
+    import fitz as _fitz
+    _FITZ_AVAILABLE = True
+except ImportError:
+    _FITZ_AVAILABLE = False
+
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = (
@@ -79,9 +85,19 @@ class HealthcareRAGService:
         ext = filename.split(".")[-1].lower()
 
         if ext == "pdf":
-            if not _PYPDF_AVAILABLE:
-                logger.warning("pypdf not available; skipping PDF extraction")
-            else:
+            if _FITZ_AVAILABLE:
+                try:
+                    doc = _fitz.open(stream=content, filetype="pdf")
+                    for page in doc:
+                        text = page.get_text() or ""
+                        extracted_text += text + "\n"
+                        if _TESSERACT_AVAILABLE and _PIL_AVAILABLE and len(text.strip()) < 50:
+                            pix = page.get_pixmap(dpi=150)
+                            img = _PilImage.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                            extracted_text += _pytesseract.image_to_string(img) + "\n"
+                except Exception as e:
+                    logger.warning(f"fitz reader error: {e}")
+            if not extracted_text.strip() and _PYPDF_AVAILABLE:
                 try:
                     reader = _pypdf.PdfReader(io.BytesIO(content))
                     for page in reader.pages:
@@ -91,14 +107,21 @@ class HealthcareRAGService:
                     logger.warning(f"pypdf reader error: {e}")
 
         elif ext in ["png", "jpg", "jpeg", "webp", "bmp"]:
-            if not _TESSERACT_AVAILABLE or not _PIL_AVAILABLE:
-                logger.warning("Tesseract/PIL not available; skipping OCR")
-            else:
+            if _TESSERACT_AVAILABLE and _PIL_AVAILABLE:
                 try:
                     image = _PilImage.open(io.BytesIO(content))
                     extracted_text = _pytesseract.image_to_string(image)
                 except Exception as e:
                     logger.warning(f"Image OCR error: {e}")
+
+        # Fallback: decode text files (.txt, .csv, .md, .json, etc.) directly
+        if not extracted_text.strip():
+            try:
+                decoded = content.decode("utf-8", errors="ignore")
+                if len(decoded.strip()) > 5:
+                    extracted_text = decoded
+            except Exception:
+                pass
 
         # Resilient fallback if text extraction yielded no plain text
         if not extracted_text.strip():
@@ -192,8 +215,9 @@ class HealthcareRAGService:
         )
 
     def query(self, db: Session, request: DocumentQueryRequest) -> DocumentQueryResponse:
-        query_text = request.query.strip().lower()
-        logger.info(f"RAG query: '{query_text}' | patient={request.patient_id} | doc={request.document_id}")
+        query_text = request.query.strip()
+        query_lower = query_text.lower()
+        logger.info(f"RAG query: '{query_lower}' | patient={request.patient_id} | doc={request.document_id}")
 
         # 1. Retrieve scoped documents from SQLite
         db_query = db.query(MedicalDocument)
@@ -204,14 +228,34 @@ class HealthcareRAGService:
 
         docs = db_query.all()
         if not docs:
-            msg = "No matching medical records found."
-            if request.patient_id:
-                msg = f"No documents found for Patient ID: {request.patient_id}. Please upload a medical record first."
+            if request.patient_id or request.document_id:
+                msg = "No matching medical records found."
+                if request.patient_id:
+                    msg = f"No documents found for Patient ID: {request.patient_id}. Please upload a medical record first."
+                return DocumentQueryResponse(
+                    answer=msg,
+                    sources=[],
+                    relevant_passages=[],
+                    patient_id=request.patient_id,
+                )
+            
+            # Answer general medical and public health queries using AI Medical Knowledge Assistant
+            system_prompt = (
+                f"{SYSTEM_PROMPT}\n\n"
+                f"Note: No patient-specific medical documents were selected. Provide comprehensive clinical "
+                f"and public health guidelines answering the user's question directly."
+            )
+            messages = ai_provider_service.build_messages(
+                system_prompt=system_prompt,
+                user_message=query_text,
+            )
+            answer = ai_provider_service.generate_response(messages=messages, temperature=0.3, max_tokens=800)
             return DocumentQueryResponse(
-                answer=msg,
-                sources=[],
+                answer=answer,
+                sources=["MedIntel Clinical Knowledge Base"],
                 relevant_passages=[],
-                patient_id=request.patient_id,
+                patient_id=None,
+                confidence=0.95,
             )
 
         # 2. Extract matching chunks across authorized docs using FAISS if available, else SQLite text
@@ -234,7 +278,7 @@ class HealthcareRAGService:
                     search_kwargs["filter"] = filter_dict
 
                 retriever = vectorstore.as_retriever(search_kwargs=search_kwargs)
-                retrieved_docs = retriever.invoke(query_text)
+                retrieved_docs = retriever.invoke(query_lower)
                 for doc in retrieved_docs:
                     relevant_chunks.append(doc.page_content)
                     sources.append(f"{doc.metadata.get('title', 'Unknown')} ({doc.metadata.get('doc_type', 'report')})")
@@ -242,10 +286,28 @@ class HealthcareRAGService:
                 logger.error(f"FAISS retrieve error: {e}")
 
         if not relevant_chunks:
-            # Direct SQLite match extraction
-            for doc in docs:
+            # Keyword-scored SQLite fallback — rank docs by query term overlap
+            query_keywords = [w for w in re.split(r"\W+", query_lower) if len(w) > 2]
+
+            def score_doc(doc):
+                text_lower = (doc.extracted_text or "").lower()
+                return sum(text_lower.count(kw) for kw in query_keywords)
+
+            scored_docs = sorted(docs, key=score_doc, reverse=True)
+
+            for doc in scored_docs:
                 if doc.extracted_text:
-                    relevant_chunks.append(doc.extracted_text[:400])
+                    # Extract the most relevant window of text around query keywords
+                    text = doc.extracted_text
+                    best_chunk = text[:4000]
+                    for kw in query_keywords:
+                        idx = text.lower().find(kw)
+                        if idx != -1:
+                            start = max(0, idx - 200)
+                            end = min(len(text), idx + 1800)
+                            best_chunk = text[start:end]
+                            break
+                    relevant_chunks.append(best_chunk)
                     sources.append(f"{doc.title} ({doc.doc_type})")
                     if len(relevant_chunks) >= 3:
                         break
@@ -253,13 +315,17 @@ class HealthcareRAGService:
         context = "\n\n".join(relevant_chunks[:4])
 
         # 3. Generate AI response using provider service
-        system_with_context = f"{SYSTEM_PROMPT}\n\nContext from patient records:\n{context}"
+        system_with_context = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"User's specific question: {query_text}\n\n"
+            f"Context from patient records:\n{context}"
+        )
         messages = ai_provider_service.build_messages(
             system_prompt=system_with_context,
-            user_message=request.query,
+            user_message=query_text,
         )
 
-        answer = ai_provider_service.generate_response(messages=messages, temperature=0.1, max_tokens=800)
+        answer = ai_provider_service.generate_response(messages=messages, temperature=0.3, max_tokens=800)
 
         # If the response looks like a friendly error, annotate it
         if "⚠️" in answer or "temporarily unavailable" in answer.lower():

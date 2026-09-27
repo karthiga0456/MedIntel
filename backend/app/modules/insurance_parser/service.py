@@ -9,6 +9,12 @@ from app.modules.insurance_parser.schemas import InsuranceClaimResponse
 
 # Lazy imports — these may not be available in all environments
 try:
+    import fitz
+    _FITZ_AVAILABLE = True
+except ImportError:
+    _FITZ_AVAILABLE = False
+
+try:
     import pypdf
     _PYPDF_AVAILABLE = True
 except ImportError:
@@ -46,24 +52,41 @@ class InsuranceParserService:
         filename = (file.filename or "").lower()
         text = ""
         if filename.endswith(".pdf"):
-            if not _PYPDF_AVAILABLE:
-                logger.warning("pypdf not available; skipping PDF extraction")
-                return ""
+            if _FITZ_AVAILABLE:
+                try:
+                    doc = fitz.open(stream=content, filetype="pdf")
+                    for page in doc:
+                        text += (page.get_text() or "") + "\n"
+                        if _TESSERACT_AVAILABLE and _PIL_AVAILABLE and len(text.strip()) < 50:
+                            pix = page.get_pixmap(dpi=150)
+                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                            text += pytesseract.image_to_string(img) + "\n"
+                except Exception as e:
+                    logger.error(f"Error parsing PDF with fitz: {e}")
+            if not text.strip() and _PYPDF_AVAILABLE:
+                try:
+                    reader = pypdf.PdfReader(io.BytesIO(content))
+                    for page in reader.pages:
+                        text += (page.extract_text() or "") + "\n"
+                except Exception as e:
+                    logger.error(f"Error parsing PDF with pypdf: {e}")
+        elif any(filename.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp"]):
+            if _TESSERACT_AVAILABLE and _PIL_AVAILABLE:
+                try:
+                    img = Image.open(io.BytesIO(content))
+                    text = pytesseract.image_to_string(img)
+                except Exception as e:
+                    logger.error(f"Error OCR on insurance image: {e}")
+
+        # Fallback: decode text files (.txt, .csv, .md, .json, etc.) directly
+        if not text.strip():
             try:
-                reader = pypdf.PdfReader(io.BytesIO(content))
-                for page in reader.pages:
-                    text += (page.extract_text() or "") + "\n"
-            except Exception as e:
-                logger.error(f"Error parsing PDF: {e}")
-        elif any(filename.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp"]):
-            if not _TESSERACT_AVAILABLE or not _PIL_AVAILABLE:
-                logger.warning("Tesseract/PIL not available; skipping OCR")
-                return ""
-            try:
-                img = Image.open(io.BytesIO(content))
-                text = pytesseract.image_to_string(img)
-            except Exception as e:
-                logger.error(f"Error OCR on insurance image: {e}")
+                decoded = content.decode("utf-8", errors="ignore")
+                if len(decoded.strip()) > 0:
+                    text = decoded
+            except Exception:
+                pass
+
         return text.strip()
 
     def _rule_based_parse(self, bill_text: str, policy_text: str) -> Dict[str, Any]:
@@ -83,7 +106,7 @@ class InsuranceParserService:
                 try:
                     val = float(raw_amt)
                     if 10.0 <= val <= 500000.0:
-                        desc = re.sub(r"[0-9,.]+", "", line).strip(" :-|")
+                        desc = re.sub(r"(?:₹|\$|INR|Rs\.?|[0-9,.]+)", "", line).strip(" :-|$\t")
                         if not desc:
                             desc = "Medical Charge / Procedure"
 

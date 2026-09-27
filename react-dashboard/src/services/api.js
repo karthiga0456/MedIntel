@@ -95,7 +95,15 @@ export const api = {
       if (patientId) formData.append('patient_id', patientId);
       formData.append('doc_type', docType);
       const response = await fetch(`${BASE_URL}/rag/upload`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('File upload failed');
+      if (!response.ok) {
+        let errDetail = `${response.status} ${response.statusText}`;
+        try {
+          const errJson = await response.json();
+          if (errJson.detail) errDetail = errJson.detail;
+          if (errJson.error && errJson.error.message) errDetail = errJson.error.message;
+        } catch (_) {}
+        throw new Error(errDetail);
+      }
       return await response.json();
     },
     getPatientDocuments: async (patientId) => fetchAPI(`/rag/patient/${patientId}`),
@@ -144,7 +152,15 @@ export const api = {
       formData.append('policy_file', policyFile);
       if (patientId) formData.append('patient_id', patientId);
       const response = await fetch(`${BASE_URL}/insurance/calculate`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Insurance claim calculation failed');
+      if (!response.ok) {
+        let errDetail = `${response.status} ${response.statusText}`;
+        try {
+          const errJson = await response.json();
+          if (errJson.detail) errDetail = errJson.detail;
+          if (errJson.error && errJson.error.message) errDetail = errJson.error.message;
+        } catch (_) {}
+        throw new Error(errDetail);
+      }
       return await response.json();
     },
     getPatientClaims: async (patientId) => fetchAPI(`/insurance/claims/patient/${patientId}`),

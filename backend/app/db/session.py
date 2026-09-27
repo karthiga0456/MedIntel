@@ -49,6 +49,21 @@ def init_db():
     """Create all tables and seed default admin/worker accounts."""
     import app.db.models  # noqa: F401 — register all ORM models
     Base.metadata.create_all(bind=engine)
+    
+    # Auto-migrate missing columns for existing SQLite DBs
+    with engine.connect() as conn:
+        for col_def in [
+            "ALTER TABLE medicines ADD COLUMN indications TEXT;",
+            "ALTER TABLE medicines ADD COLUMN side_effects TEXT;",
+            "ALTER TABLE medicines ADD COLUMN warnings TEXT;",
+            "ALTER TABLE medicines ADD COLUMN interactions JSON;"
+        ]:
+            try:
+                conn.execute(text(col_def))
+                conn.commit()
+            except Exception:
+                pass
+
     try:
         from app.modules.auth.service import get_user_by_email, create_user
         from app.modules.auth.schemas import UserCreate

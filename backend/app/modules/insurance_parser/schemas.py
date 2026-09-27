@@ -12,12 +12,12 @@ class BillLineItem(BaseModel):
 
 class InsuranceClaimResponse(BaseModel):
     status: str
-    totalBilled: int
-    coveredAmount: int
-    outOfPocket: int
-    deductibleApplied: int
-    coPayApplied: int
-    nonCoveredAmount: int = 0
+    totalBilled: float
+    coveredAmount: float
+    outOfPocket: float
+    deductibleApplied: float
+    coPayApplied: float
+    nonCoveredAmount: float = 0.0
     notes: str
     disclaimer: str = (
         "⚠️ ESTIMATE ONLY: This claim assessment is an AI-assisted estimate based on extracted policy terms "

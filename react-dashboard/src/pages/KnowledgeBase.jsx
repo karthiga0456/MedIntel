@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
-import { MagnifyingGlass, FileText, UploadSimple, WarningCircle, CheckCircle, Spinner } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, UploadSimple, WarningCircle, CheckCircle, Spinner, Robot } from '@phosphor-icons/react';
 import { api } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+
+// Simple markdown renderer (matches Assistant.jsx style)
+function renderMarkdown(text) {
+  if (!text) return '';
+  return text
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px;">$1</code>')
+    .replace(/^### (.*?)$/gm, '<h4 style="color:var(--accent-cyan);font-size:15px;font-weight:700;margin:14px 0 8px 0;">$1</h4>')
+    .replace(/^## (.*?)$/gm, '<h3 style="color:#e2e8f0;font-size:16px;font-weight:700;margin:14px 0 8px 0;">$1</h3>')
+    .replace(/^- (.*?)$/gm, '<div style="display:flex;gap:8px;margin:4px 0;"><span style="color:var(--accent-cyan);margin-top:1px;flex-shrink:0;">•</span><span>$1</span></div>')
+    .replace(/^\d+\. (.*?)$/gm, '<div style="display:flex;gap:8px;margin:4px 0;"><span style="color:var(--accent-cyan);flex-shrink:0;font-weight:600;">→</span><span>$1</span></div>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
 
 export default function KnowledgeBase() {
   const toast = useToast();
@@ -20,18 +36,24 @@ export default function KnowledgeBase() {
     
     try {
       const data = await api.rag.query(query);
-      setResult(data.answer || data.response || "No answer returned from backend.");
-    } catch (error) {
-      const q = query.toLowerCase();
-      let answer = "";
-      if (q.includes("dengue")) {
-        answer = "📄 **Retrieved Guidelines for Dengue Management:**\n\n- **Diagnosis:** NS1 antigen test within first 5 days; IgM/IgG ELISA after 5 days.\n- **Treatment Protocol:** Symptomatic support, oral rehydration therapy (ORS), bed rest, and paracetamol for fever. Avoid NSAIDs (aspirin/ibuprofen) to reduce bleeding risk.\n- **Monitoring:** Track hematocrit levels and platelet counts daily for early warning signs of severe dengue.";
-      } else if (q.includes("summary") || q.includes("uploaded") || q.includes("bill") || q.includes("checkup")) {
-        answer = "📄 **Extracted Clinical Findings (Uploaded Document):**\n\n- **Document Name:** " + (uploadedFile ? uploadedFile.name : "Uploaded Medical Report") + "\n- **Extraction Status:** OCR & Vector Indexing Complete\n- **Vitals Assessment:** Blood Pressure 120/80 mmHg, Pulse Rate 72 bpm, Normal SpO2 (98%).\n- **Diagnostic Evaluation:** Blood Glucose within reference range, Chest X-Ray clear.\n- **Physician Advice:** Routine annual health checkup completed with no acute clinical abnormalities flagged.";
+      const answer = data.answer || data.response;
+      if (!answer) {
+        setResult('⚠️ **No answer returned.** The backend processed your query but returned an empty response. Please try rephrasing your question or upload a relevant medical document first.');
       } else {
-        answer = `📄 **Retrieved Medical Guidelines for "${query}":**\n\n- **Clinical Practice:** Consult national healthcare guidelines and Primary Health Centre (PHC) standard treatment protocols.\n- **Preventive Measures:** Ensure hydration, proper nutrition, and routine screening.\n- **Government Support:** Free diagnostics and consultations are covered under the National Health Mission (NHM) and Ayushman Bharat PM-JAY.`;
+        setResult(answer);
       }
-      setResult(answer);
+    } catch (error) {
+      // Only use offline fallbacks when the server is genuinely unreachable (network error)
+      const isNetworkError = error.message === 'Failed to fetch' || error.message.includes('NetworkError') || error.message.includes('net::ERR');
+      if (isNetworkError) {
+        // Minimal offline hint – do NOT fake medical data
+        setResult(`⚠️ **Offline Mode** — Could not reach the MedIntel backend.\n\nPlease check your internet connection or ensure the backend server is running.\n\nFor urgent clinical guidance, consult your Primary Health Centre (PHC) or call **112**.`);
+        toast.warning('Backend unreachable. Showing offline message.', 'Connection Error');
+      } else {
+        // Real API error — surface it clearly
+        setResult(`❌ **Query Failed:** ${error.message}\n\nPlease try again or upload a medical document first before querying.`);
+        toast.error(error.message, 'RAG Query Error');
+      }
     } finally {
       setLoading(false);
     }
@@ -53,15 +75,16 @@ export default function KnowledgeBase() {
     toast.info(`Uploading ${file.name} for OCR processing...`, 'Upload Started');
     
     try {
-      await api.rag.uploadDocument(file);
+      const res = await api.rag.uploadDocument(file);
       setUploadedFile({ name: file.name, status: 'done' });
       setQuery(`Summarize the findings from the uploaded document: ${file.name}`);
+      const previewText = res.extracted_preview || 'Document text extracted successfully.';
+      setResult(`📄 **Document Ingested Successfully!**\n\n**Filename:** \`${file.name}\`\n**Indexed Chunks:** ${res.chunks_indexed || 1}\n\n**Extracted Text Preview:**\n> ${previewText}\n\nClick **Search** or type a custom query below to analyze clinical findings.`);
       toast.success('Document uploaded and indexed successfully.', 'Processing Complete');
     } catch (error) {
-      setUploadedFile({ name: file.name, status: 'done' });
-      setQuery(`Summarize the findings from the uploaded document: ${file.name}`);
-      setResult(`📄 **Document Ingested Successfully!**\n\nExtracted text from **${file.name}** and indexed into Vector DB. Click **Search** to analyze clinical findings.`);
-      toast.success('Document uploaded and indexed successfully.', 'Processing Complete');
+      setUploadedFile({ name: file.name, status: 'error' });
+      setResult(`❌ **Document Upload Failed:** ${error.message}\n\nPlease verify that the uploaded file is a valid PDF, Image, or Text document.`);
+      toast.error(error.message || 'File upload failed', 'Upload Error');
     }
   };
 
@@ -154,12 +177,16 @@ export default function KnowledgeBase() {
               <div className="skeleton skeleton-text" style={{ width: '60%' }} />
             </div>
           ) : result ? (
-            <pre style={{ 
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-family)', 
-              margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)' 
-            }}>
-              {result}
-            </pre>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid var(--panel-border)' }}>
+                <Robot size={18} weight="fill" color="var(--accent-cyan)" />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>RAG Response</span>
+              </div>
+              <div
+                style={{ fontSize: '14px', lineHeight: '1.75', color: 'var(--text-primary)' }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(result) }}
+              />
+            </div>
           ) : (
             <div className="empty-state" style={{ margin: 'auto', background: 'transparent', border: 'none', padding: 0 }}>
               <MagnifyingGlass size={36} color="var(--text-muted)" style={{ marginBottom: '12px' }} />

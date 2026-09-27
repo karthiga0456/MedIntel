@@ -4,7 +4,7 @@ import {
   Heartbeat, Robot, Books, ChartPieSlice,
   Users, Pill, Siren, Shield, MapPin, Bell,
   SignOut, CaretLeft, CaretRight, List, X,
-  Sun, Moon, MagnifyingGlass,
+  Sun, Moon, MagnifyingGlass, TerminalWindow,
 } from '@phosphor-icons/react';
 import { offlineSync } from '../services/offlineSync';
 import { api } from '../services/api';
@@ -157,14 +157,14 @@ export default function DashboardLayout() {
         aria-label="Main navigation"
       >
         <div className="brand">
-          <div className="brand-icon"><Heartbeat weight="fill" size={20} /></div>
-          <h1>MedIntel</h1>
+          <div className="brand-icon"><TerminalWindow weight="bold" size={24} /></div>
+          <h1>NEXUS UI</h1>
           <button
             className="sidebar-collapse-btn"
             onClick={toggleCollapse}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <CaretRight size={13} /> : <CaretLeft size={13} />}
+            {collapsed ? <CaretRight size={14} weight="bold" /> : <CaretLeft size={14} weight="bold" />}
           </button>
         </div>
 

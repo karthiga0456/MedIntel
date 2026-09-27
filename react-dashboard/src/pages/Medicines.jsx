@@ -46,6 +46,16 @@ export default function Medicines() {
     { id: 'f3', generic_name: 'Metformin', brand_name: 'Glycomet', category: 'Antidiabetic', default_dosage: '500mg', standard_frequency: 'BD-TDS with meals', indications: 'Type 2 Diabetes', side_effects: 'GI upset', warnings: 'Monitor renal function.' },
     { id: 'f4', generic_name: 'Amlodipine', brand_name: 'Amvaz', category: 'Calcium Channel Blocker', default_dosage: '5mg', standard_frequency: 'OD morning', indications: 'Hypertension', side_effects: 'Ankle edema', warnings: 'Monitor BP regularly.' },
     { id: 'f5', generic_name: 'Ibuprofen', brand_name: 'Brufen', category: 'NSAID', default_dosage: '400mg', standard_frequency: 'BD-TDS after food', indications: 'Pain, inflammation', side_effects: 'Gastritis', warnings: 'Avoid in asthma and renal disease.' },
+    { id: 'f6', generic_name: 'Cetirizine', brand_name: 'Zyrtec', category: 'Antihistamine', default_dosage: '10mg', standard_frequency: 'OD night', indications: 'Allergies, Hay fever', side_effects: 'Drowsiness, dry mouth', warnings: 'May impair driving. Avoid alcohol.' },
+    { id: 'f7', generic_name: 'Pantoprazole', brand_name: 'Pan 40', category: 'Proton Pump Inhibitor', default_dosage: '40mg', standard_frequency: 'OD before breakfast', indications: 'GERD, Acid Reflux', side_effects: 'Headache, nausea', warnings: 'Long term use may reduce B12 and bone density.' },
+    { id: 'f8', generic_name: 'Atorvastatin', brand_name: 'Lipitor', category: 'Statin', default_dosage: '10-20mg', standard_frequency: 'OD night', indications: 'High Cholesterol', side_effects: 'Muscle ache', warnings: 'Monitor liver function. Avoid grapefruit juice.' },
+    { id: 'f9', generic_name: 'Losartan', brand_name: 'Losar', category: 'ARB', default_dosage: '50mg', standard_frequency: 'OD', indications: 'Hypertension', side_effects: 'Dizziness, high potassium', warnings: 'Contraindicated in pregnancy.' },
+    { id: 'f10', generic_name: 'Azithromycin', brand_name: 'Zithromax', category: 'Antibiotic (Macrolide)', default_dosage: '500mg', standard_frequency: 'OD for 3-5 days', indications: 'Respiratory/Skin infections', side_effects: 'Nausea, diarrhea', warnings: 'May cause QT prolongation.' },
+    { id: 'f11', generic_name: 'Dextromethorphan', brand_name: 'Robitussin', category: 'Antitussive', default_dosage: '10-20mg', standard_frequency: 'Every 4-6 hrs', indications: 'Dry cough', side_effects: 'Dizziness, drowsiness', warnings: 'Do not use with MAO inhibitors.' },
+    { id: 'f12', generic_name: 'Loperamide', brand_name: 'Imodium', category: 'Antidiarrheal', default_dosage: '4mg initially, then 2mg', standard_frequency: 'After each loose stool', indications: 'Acute diarrhea', side_effects: 'Constipation, cramps', warnings: 'Avoid if blood in stool.' },
+    { id: 'f13', generic_name: 'Ondansetron', brand_name: 'Emeset', category: 'Antiemetic', default_dosage: '4-8mg', standard_frequency: 'BD-TDS', indications: 'Nausea, Vomiting', side_effects: 'Headache, constipation', warnings: 'May cause QT prolongation.' },
+    { id: 'f14', generic_name: 'Glimepiride', brand_name: 'Amaryl', category: 'Antidiabetic', default_dosage: '1-2mg', standard_frequency: 'OD before breakfast', indications: 'Type 2 Diabetes', side_effects: 'Hypoglycemia', warnings: 'Monitor blood sugar levels.' },
+    { id: 'f15', generic_name: 'Oral Rehydration Salts', brand_name: 'Electral', category: 'Electrolyte', default_dosage: '1 Sachet in 1L water', standard_frequency: 'As needed', indications: 'Dehydration', side_effects: 'None in healthy individuals', warnings: 'Use with caution in severe renal impairment.' },
   ];
 
   const diseaseGuide = {
@@ -56,6 +66,34 @@ export default function Medicines() {
     'Respiratory Infection': [
       { name: 'Amoxicillin 500mg', dosage: '500mg TDS', category: 'Antibiotic', advice: 'Complete full course. Screen for allergy.' },
       { name: 'Azithromycin 500mg', dosage: '500mg OD', category: 'Antibiotic', advice: 'Take 1 hr before or 2 hrs after food.' }
+    ],
+    'Allergy / Hay Fever': [
+      { name: 'Cetirizine 10mg', dosage: '10mg OD night', category: 'Antihistamine', advice: 'May cause drowsiness. Take at bedtime.' },
+      { name: 'Levocetirizine 5mg', dosage: '5mg OD night', category: 'Antihistamine', advice: 'Less sedating alternative.' }
+    ],
+    'Acidity / GERD': [
+      { name: 'Pantoprazole 40mg', dosage: '40mg OD empty stomach', category: 'PPI', advice: 'Take 30 mins before breakfast.' },
+      { name: 'Antacid Syrup (Gelusil)', dosage: '2 tsp TDS/SOS', category: 'Antacid', advice: 'Avoid taking alongside other oral meds (1 hr gap).' }
+    ],
+    'Hypertension (Standard)': [
+      { name: 'Amlodipine 5mg', dosage: '5mg OD', category: 'CCB', advice: 'Watch for ankle swelling.' },
+      { name: 'Losartan 50mg', dosage: '50mg OD', category: 'ARB', advice: 'Monitor blood pressure regularly.' }
+    ],
+    'Cough / Cold': [
+      { name: 'Dextromethorphan Syrup', dosage: '10ml TDS', category: 'Antitussive', advice: 'For dry cough only. May cause drowsiness.' },
+      { name: 'Levocetirizine 5mg', dosage: '5mg OD night', category: 'Antihistamine', advice: 'Relieves runny nose and sneezing.' }
+    ],
+    'Diarrhea': [
+      { name: 'ORS (Electral)', dosage: 'Sip continuously', category: 'Hydration', advice: 'Crucial to prevent dehydration.' },
+      { name: 'Loperamide 2mg', dosage: '2mg after each loose stool', category: 'Antidiarrheal', advice: 'Do not exceed 16mg/day. Avoid in fever.' }
+    ],
+    'Nausea / Vomiting': [
+      { name: 'Ondansetron 4mg', dosage: '4mg SOS/BD', category: 'Antiemetic', advice: 'Take 30 mins before food or travel.' },
+      { name: 'Domperidone 10mg', dosage: '10mg TDS', category: 'Prokinetic', advice: 'Take before meals.' }
+    ],
+    'Diabetes Type-2 (Standard)': [
+      { name: 'Metformin 500mg', dosage: '500mg BD after meals', category: 'Antidiabetic', advice: 'Take with food to minimize stomach upset.' },
+      { name: 'Glimepiride 1mg', dosage: '1mg OD before breakfast', category: 'Antidiabetic', advice: 'Watch out for low blood sugar symptoms.' }
     ]
   };
 
