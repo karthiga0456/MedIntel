@@ -30,6 +30,18 @@ async function fetchAPI(endpoint, options = {}) {
   }
 }
 
+function buildQueryString(params = {}) {
+  const cleanParams = new URLSearchParams();
+  Object.keys(params).forEach(key => {
+    const val = params[key];
+    if (val !== undefined && val !== null && val !== '') {
+      cleanParams.append(key, val);
+    }
+  });
+  const str = cleanParams.toString();
+  return str ? `?${str}` : '';
+}
+
 export const api = {
   // ── Authentication ─────────────────────────────────────────────────
   auth: {
@@ -60,8 +72,8 @@ export const api = {
   // ── Patient Management ─────────────────────────────────────────────
   patients: {
     list: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
-      return fetchAPI(`/patients?${query}`);
+      const queryStr = buildQueryString(params);
+      return fetchAPI(`/patients${queryStr}`);
     },
     get: async (id) => fetchAPI(`/patients/${id}`),
     create: async (data) => fetchAPI('/patients', { method: 'POST', body: JSON.stringify(data) }),
@@ -193,8 +205,8 @@ export const api = {
   // ── Audit Logs ─────────────────────────────────────────────────────
   audit: {
     listLogs: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
-      return fetchAPI(`/audit?${query}`);
+      const queryStr = buildQueryString(params);
+      return fetchAPI(`/audit${queryStr}`);
     },
   },
 

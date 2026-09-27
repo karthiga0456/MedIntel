@@ -47,6 +47,9 @@ def list_patients(
     db: Session = Depends(get_db),
 ):
     """List registered patients with search, filtering, and pagination."""
+    if query and query.strip().lower() in ("undefined", "null", ""):
+        query = None
+
     items, total = service.list_patients(
         db=db,
         query_str=query,

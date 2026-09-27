@@ -64,7 +64,7 @@ export default function Patients() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.patients.list({ query: debouncedSearch || undefined, size: 50 });
+      const res = await api.patients.list({ query: debouncedSearch.trim() || undefined, size: 50 });
       setPatients(res.items || []);
     } catch (err) {
       console.error('Failed to load patient registry:', err);
